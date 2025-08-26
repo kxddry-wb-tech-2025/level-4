@@ -29,3 +29,10 @@ type FoundBlock struct {
 	StartLineNumber int      `json:"start_line_number"`
 	Lines           []string `json:"lines"`
 }
+
+type ParsedAddr struct {
+	Raw    string // the original input
+	Scheme string // http, https, ftp, etc.
+	Host   string
+	Port   string
+}

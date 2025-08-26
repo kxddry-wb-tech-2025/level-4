@@ -3,28 +3,34 @@ package service
 import (
 	"bufio"
 	"bytes"
+	"client/internal/helpers/parser"
 	"client/internal/models"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
+	"sort"
 	"sync"
 )
 
 func Run(pattern string, files []string, addrs []string, flags models.GrepFlags) error {
-	aliveServers := make([]string, 0, len(addrs))
+	aliveServers := make([]*models.ParsedAddr, 0, len(addrs))
 	for i := range addrs {
-		if addrs[i] == "" {
-			return errors.New("empty address found")
+		parsed, err := parser.ParseAddress(addrs[i], "http")
+		if err != nil {
+			return err
 		}
-		if !strings.Contains(addrs[i], ":") {
-			return errors.New("address must contain a port (e.g., host:port)")
+
+		req, err := http.NewRequest("GET", "http://"+parsed.Host+":"+parsed.Port+"/health", nil)
+		if err != nil {
+			return err
 		}
-		resp, err := http.Get("http://" + addrs[i] + "/health")
-		if err == nil && (resp.StatusCode == 200 || resp.StatusCode == 204) {
-			aliveServers = append(aliveServers, addrs[i])
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent) {
+			aliveServers = append(aliveServers, parsed)
+		} else {
+			fmt.Printf("server %s is not alive\n", addrs[i])
 		}
 		if resp != nil {
 			resp.Body.Close()
@@ -36,45 +42,56 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags)
 	wg := new(sync.WaitGroup)
 
 	for i, file := range files {
+		fmt.Println(file)
 		lines, err := openFile(file)
 		if err != nil {
 			return err
 		}
 
-		// Create tasks with context handling
 		tasks := createTasksWithContext(lines, pattern, flags, len(aliveServers), i)
 
-		for j, addr := range aliveServers {
-			for _, task := range tasks {
-				wg.Add(1)
-				go func(addr string, task models.Task) {
-					defer wg.Done()
+		allBlocks := make([]models.FoundBlock, 0, len(tasks))
+		var mu sync.Mutex
 
-					task.ID = i*len(aliveServers) + j
+		for j, task := range tasks {
+			addr := aliveServers[j%len(aliveServers)]
+			wg.Add(1)
+			go func(addr *models.ParsedAddr, task models.Task) {
+				defer wg.Done()
 
-					data, err := json.Marshal(task)
-					if err != nil {
-						fmt.Printf("failed to marshal request: %v\n", err)
-						return
-					}
+				data, err := json.Marshal(task)
+				if err != nil {
+					fmt.Printf("failed to marshal request: %v\n", err)
+					return
+				}
 
-					resp, err := http.Post("http://"+addr+"/task", "application/json", bytes.NewBuffer(data))
-					if err != nil {
-						fmt.Printf("failed to send request to %s: %v\n", addr, err)
-						return
-					}
-					defer resp.Body.Close()
+				resp, err := http.Post("http://"+addr.Host+":"+addr.Port+"/grep", "application/json", bytes.NewBuffer(data))
+				if err != nil {
+					fmt.Printf("failed to send request to %s: %v\n", addr.Host+":"+addr.Port, err)
+					return
+				}
+				defer resp.Body.Close()
 
-					if resp.StatusCode != http.StatusOK {
-						fmt.Printf("server %s returned status %d\n", addr, resp.StatusCode)
-						return
-					}
-				}(addr, task)
-			}
+				if resp.StatusCode != http.StatusOK {
+					fmt.Printf("server %s returned status %d\n", addr.Host+":"+addr.Port, resp.StatusCode)
+					return
+				}
+
+				var result models.Result
+				if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+					fmt.Printf("failed to decode response from %s: %v\n", addr.Host+":"+addr.Port, err)
+					return
+				}
+
+				mu.Lock()
+				allBlocks = append(allBlocks, result.FoundBlocks...)
+				mu.Unlock()
+			}(addr, task)
 		}
-	}
+		wg.Wait()
 
-	wg.Wait()
+		printBlocksNonOverlapping(file, allBlocks, flags)
+	}
 	return nil
 }
 
@@ -94,7 +111,7 @@ func createTasksWithContext(lines []string, pattern string, flags models.GrepFla
 			ID:              i + offset*numServers,
 			BeforeContext:   before,
 			AfterContext:    after,
-			StartLineNumber: left,
+			StartLineNumber: left + 1,
 			Flags:           flags,
 		})
 	}
@@ -114,4 +131,35 @@ func openFile(filename string) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+func printBlocksNonOverlapping(filename string, blocks []models.FoundBlock, flags models.GrepFlags) {
+	if len(blocks) == 0 {
+		return
+	}
+
+	lineToText := make(map[int]string, 1024)
+	for _, b := range blocks {
+		for k, s := range b.Lines {
+			ln := b.StartLineNumber + k
+			if _, exists := lineToText[ln]; !exists {
+				lineToText[ln] = s
+			}
+		}
+	}
+
+	keys := make([]int, 0, len(lineToText))
+	for ln := range lineToText {
+		keys = append(keys, ln)
+	}
+	sort.Ints(keys)
+
+	fmt.Println(filename)
+	for _, ln := range keys {
+		if flags.PrintNumbers {
+			fmt.Printf("%d:%s\n", ln, lineToText[ln])
+		} else {
+			fmt.Println(lineToText[ln])
+		}
+	}
 }
