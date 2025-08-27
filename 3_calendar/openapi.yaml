@@ -1,0 +1,242 @@
+openapi: 3.0.0
+title: Calendar API
+version: 1.0.0
+description: API for managing calendar events
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Check server health
+      responses:
+        '200':
+          description: Server is healthy
+  
+  /events:
+    post:
+      summary: Create a new event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostEventRequest'
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: The ID of the event
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+    get:
+      summary: Get all events
+      responses:
+        '200':
+          description: A list of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+    
+  
+  /events/{id}:
+    get:
+      summary: Get an event by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: Event not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+    
+    put:
+      summary: Update an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutEventRequest'
+      responses:
+        '200':
+          description: Event updated successfully
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+  
+    delete:
+      summary: Delete an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event deleted successfully
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: The error message
+        '500':
+          description: Internal server error
+        '404':
+          description: Event not found
+
+
+components:
+  schemas:
+    PostEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: The title of the event
+        description:
+          type: string
+          description: The description of the event
+        start:
+          type: string
+          format: date-time
+          description: The start time of the event
+        end:
+          type: string
+          format: date-time
+          description: The end time of the event
+        notify:
+          type: boolean
+          description: Whether to notify the user when the event starts
+          default: false
+        email:
+          type: string
+          description: The email of the user to notify
+          format: email
+          default: null
+      
+    PutEventRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: The title of the event
+        description:
+          type: string
+          description: The description of the event
+        start:
+          type: string
+          format: date-time
+          description: The start time of the event
+        end:
+          type: string
+          format: date-time
+          description: The end time of the event
+        notify:
+          type: boolean
+          description: Whether to notify the user when the event starts
+          default: false
+        email:
+          type: string
+          description: The email of the user to notify
+          format: email
+          default: null
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The ID of the event
+        title:
+          type: string
+          description: The title of the event
+        description:
+          type: string
+          description: The description of the event
+        start:
+          type: string
+          format: date-time
+          description: The start time of the event
+        end:
+          type: string
+          format: date-time
+          description: The end time of the event
