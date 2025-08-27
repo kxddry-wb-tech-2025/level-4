@@ -4,6 +4,7 @@ import (
 	"client/internal/models"
 	"client/internal/service"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -49,7 +50,7 @@ func runGrep(args []string) {
 	}
 
 	if err := service.Run(pattern, files, addrs, flags, quorum); err != nil {
-		fmt.Println("Error:", err)
+		fmt.Fprintln(os.Stderr, err)
 	}
 }
 

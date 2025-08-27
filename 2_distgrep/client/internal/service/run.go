@@ -15,6 +15,7 @@ import (
 
 // Run is the main function for running the grep service
 func Run(pattern string, files []string, addrs []string, flags models.GrepFlags, quorum int) error {
+	Err := os.Stderr
 	aliveServers := make([]*models.ParsedAddr, 0, len(addrs))
 	for i := range addrs {
 		parsed, err := parser.ParseAddress(addrs[i], "http")
@@ -30,7 +31,7 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags,
 		if err == nil && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent) {
 			aliveServers = append(aliveServers, parsed)
 		} else {
-			fmt.Printf("server %s is not alive\n", addrs[i])
+			fmt.Fprintf(Err, "server %s is not alive\n", addrs[i])
 		}
 		if resp != nil {
 			resp.Body.Close()
@@ -65,25 +66,25 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags,
 
 				data, err := json.Marshal(task)
 				if err != nil {
-					fmt.Printf("failed to marshal request: %v\n", err)
+					fmt.Fprintf(Err, "failed to marshal request: %v\n", err)
 					return
 				}
 
 				resp, err := http.Post("http://"+addr.Host+":"+addr.Port+"/grep", "application/json", bytes.NewBuffer(data))
 				if err != nil {
-					fmt.Printf("failed to send request to %s: %v\n", addr.Host+":"+addr.Port, err)
+					fmt.Fprintf(Err, "failed to send request to %s: %v\n", addr.Host+":"+addr.Port, err)
 					return
 				}
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					fmt.Printf("server %s returned status %d\n", addr.Host+":"+addr.Port, resp.StatusCode)
+					fmt.Fprintf(Err, "server %s returned status %d\n", addr.Host+":"+addr.Port, resp.StatusCode)
 					return
 				}
 
 				var result models.Result
 				if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-					fmt.Printf("failed to decode response from %s: %v\n", addr.Host+":"+addr.Port, err)
+					fmt.Fprintf(Err, "failed to decode response from %s: %v\n", addr.Host+":"+addr.Port, err)
 					return
 				}
 
