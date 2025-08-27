@@ -45,7 +45,6 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags,
 	wg := new(sync.WaitGroup)
 
 	for i, file := range files {
-		fmt.Println(file)
 		lines, err := openInput(file)
 		if err != nil {
 			return err
@@ -96,7 +95,7 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags,
 		wg.Wait()
 
 		if successCount >= quorum {
-			printBlocksNonOverlapping(file, allBlocks, flags)
+			printBlocksNonOverlapping(file, allBlocks, flags, len(files) > 1)
 		} else {
 			return fmt.Errorf("quorum not reached for %s: got %d, need %d", file, successCount, quorum)
 		}
@@ -154,7 +153,7 @@ func openInput(name string) ([]string, error) {
 	return openFile(name)
 }
 
-func printBlocksNonOverlapping(filename string, blocks []models.FoundBlock, flags models.GrepFlags) {
+func printBlocksNonOverlapping(filename string, blocks []models.FoundBlock, flags models.GrepFlags, printFileName bool) {
 	if len(blocks) == 0 {
 		return
 	}
@@ -175,7 +174,9 @@ func printBlocksNonOverlapping(filename string, blocks []models.FoundBlock, flag
 	}
 	sort.Ints(keys)
 
-	fmt.Println(filename)
+	if printFileName {
+		fmt.Println(filename)
+	}
 	for _, ln := range keys {
 		if flags.PrintNumbers {
 			fmt.Printf("%d:%s\n", ln, lineToText[ln])

@@ -21,40 +21,44 @@ var (
 	quorum       int
 )
 
+// runGrep executes the grep logic using package-level flag variables.
+func runGrep(args []string) {
+	pattern := args[0]
+	files := args[1:]
+
+	if len(files) == 0 {
+		// Read from stdin if no files provided
+		files = []string{"-"}
+	}
+
+	beforeCtx := before
+	afterCtx := after
+	if contextLines > 0 {
+		beforeCtx = contextLines
+		afterCtx = contextLines
+	}
+
+	flags := models.GrepFlags{
+		FixedString:  fixedstring,
+		PrintNumbers: printNumbers,
+		IgnoreCase:   ignorecase,
+		Invert:       invert,
+		After:        afterCtx,
+		Before:       beforeCtx,
+		CountOnly:    countOnly,
+	}
+
+	if err := service.Run(pattern, files, addrs, flags, quorum); err != nil {
+		fmt.Println("Error:", err)
+	}
+}
+
 var grepCmd = &cobra.Command{
 	Use:   "grep [PATTERN] [FILE...]",
 	Short: "Parse grep-like flags and addresses",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		pattern := args[0]
-		files := args[1:]
-
-		if len(files) == 0 {
-			// Read from stdin if no files provided
-			files = []string{"-"}
-		}
-
-		// Handle context flag which sets both before and after
-		beforeCtx := before
-		afterCtx := after
-		if contextLines > 0 {
-			beforeCtx = contextLines
-			afterCtx = contextLines
-		}
-
-		flags := models.GrepFlags{
-			FixedString:  fixedstring,
-			PrintNumbers: printNumbers,
-			IgnoreCase:   ignorecase,
-			Invert:       invert,
-			After:        afterCtx,
-			Before:       beforeCtx,
-			CountOnly:    countOnly,
-		}
-
-		if err := service.Run(pattern, files, addrs, flags, quorum); err != nil {
-			fmt.Println("Error:", err)
-		}
+		runGrep(args)
 	},
 }
 
