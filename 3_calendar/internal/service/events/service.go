@@ -2,6 +2,7 @@ package events
 
 import (
 	"calendar/internal/models"
+	"calendar/internal/models/log"
 	"calendar/internal/storage"
 	"context"
 	"errors"
@@ -17,6 +18,7 @@ type EventRepository interface {
 
 type Service struct {
 	repo EventRepository
+	logs chan<- log.Entry
 }
 
 func NewService(repo EventRepository) *Service {

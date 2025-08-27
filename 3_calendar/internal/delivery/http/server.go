@@ -14,10 +14,11 @@ import (
 )
 
 type Server struct {
-	e    *echo.Echo
-	logs chan<- log.Entry
-	port int
-	svc  Service
+	e       *echo.Echo
+	logs    chan<- log.Entry
+	port    int
+	svc     Service
+	mainCtx context.Context
 }
 
 type Service interface {
@@ -28,7 +29,7 @@ type Service interface {
 	DeleteEvent(ctx context.Context, id string) error
 }
 
-func NewServer(sCfg config.ServerConfig, service Service) *Server {
+func NewServer(ctx context.Context, sCfg config.ServerConfig, service Service) *Server {
 	e := echo.New()
 	e.Validator = &Validator{validator: validator.New()}
 	e.Server.ReadTimeout = sCfg.Timeout
@@ -36,9 +37,10 @@ func NewServer(sCfg config.ServerConfig, service Service) *Server {
 	e.Server.IdleTimeout = sCfg.IdleTimeout
 
 	s := &Server{
-		e:    e,
-		port: sCfg.Port,
-		svc:  service,
+		e:       e,
+		port:    sCfg.Port,
+		svc:     service,
+		mainCtx: ctx,
 	}
 
 	s.setup()

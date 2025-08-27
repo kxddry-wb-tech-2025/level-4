@@ -3,20 +3,24 @@ package http
 import (
 	"calendar/internal/models"
 	"calendar/internal/models/log"
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 )
 
-func (s *Server) sendLog(entry log.Entry) {
+func (s *Server) sendLog(ctx context.Context, entry log.Entry) {
 	if s.logs == nil {
 		return
 	}
 
-	go func() {
-		s.logs <- entry
-	}()
+	go func(ctx context.Context) {
+		select {
+		case s.logs <- entry:
+		case <-ctx.Done():
+		}
+	}(ctx)
 }
 
 func (s *Server) createEvent(c echo.Context) error {
@@ -30,7 +34,7 @@ func (s *Server) createEvent(c echo.Context) error {
 
 	id, err := s.svc.CreateEvent(c.Request().Context(), req)
 	if err != nil {
-		s.sendLog(log.Error(err, "failed to create event", echo.Map{
+		s.sendLog(s.mainCtx, log.Error(err, "failed to create event", echo.Map{
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "createEvent",
 		}))
@@ -43,7 +47,7 @@ func (s *Server) createEvent(c echo.Context) error {
 func (s *Server) getEvents(c echo.Context) error {
 	events, err := s.svc.GetEvents(c.Request().Context())
 	if err != nil {
-		s.sendLog(log.Error(err, "failed to get events", echo.Map{
+		s.sendLog(s.mainCtx, log.Error(err, "failed to get events", echo.Map{
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "getEvents",
 		}))
@@ -61,7 +65,7 @@ func (s *Server) getEvent(c echo.Context) error {
 			return c.JSON(http.StatusNotFound, echo.Map{"error": err.Error()})
 		}
 
-		s.sendLog(log.Error(err, "failed to get event", echo.Map{
+		s.sendLog(s.mainCtx, log.Error(err, "failed to get event", echo.Map{
 			"id":         id,
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "getEvent",
@@ -88,7 +92,7 @@ func (s *Server) updateEvent(c echo.Context) error {
 			return c.JSON(http.StatusNotFound, echo.Map{"error": err.Error()})
 		}
 
-		s.sendLog(log.Error(err, "failed to update event", echo.Map{
+		s.sendLog(s.mainCtx, log.Error(err, "failed to update event", echo.Map{
 			"id":         id,
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "updateEvent",
@@ -107,7 +111,7 @@ func (s *Server) deleteEvent(c echo.Context) error {
 			return c.JSON(http.StatusNotFound, echo.Map{"error": err.Error()})
 		}
 
-		s.sendLog(log.Error(err, "failed to delete event", echo.Map{
+		s.sendLog(s.mainCtx, log.Error(err, "failed to delete event", echo.Map{
 			"id":         id,
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "deleteEvent",
