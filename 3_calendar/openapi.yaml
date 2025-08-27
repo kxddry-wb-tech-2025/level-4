@@ -136,6 +136,9 @@ paths:
                   error:
                     type: string
                     description: The error message
+        '404':
+          description: Event not found
+          
   
     delete:
       summary: Delete an event
