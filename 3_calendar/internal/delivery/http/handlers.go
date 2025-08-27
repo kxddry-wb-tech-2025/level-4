@@ -10,6 +10,10 @@ import (
 )
 
 func (s *Server) sendLog(entry log.Entry) {
+	if s.logs == nil {
+		return
+	}
+
 	go func() {
 		s.logs <- entry
 	}()

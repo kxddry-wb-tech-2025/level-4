@@ -28,7 +28,7 @@ type Service interface {
 	DeleteEvent(ctx context.Context, id string) error
 }
 
-func NewServer(logs chan<- log.Entry, sCfg config.ServerConfig, service Service) *Server {
+func NewServer(sCfg config.ServerConfig, service Service) *Server {
 	e := echo.New()
 	e.Validator = &Validator{validator: validator.New()}
 	e.Server.ReadTimeout = sCfg.Timeout
@@ -37,7 +37,6 @@ func NewServer(logs chan<- log.Entry, sCfg config.ServerConfig, service Service)
 
 	s := &Server{
 		e:    e,
-		logs: logs,
 		port: sCfg.Port,
 		svc:  service,
 	}
@@ -45,6 +44,12 @@ func NewServer(logs chan<- log.Entry, sCfg config.ServerConfig, service Service)
 	s.setup()
 
 	return s
+}
+
+func (s *Server) Logs() <-chan log.Entry {
+	logs := make(chan log.Entry, 100)
+	s.logs = logs
+	return logs
 }
 
 type Validator struct {

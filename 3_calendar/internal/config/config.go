@@ -1,10 +1,15 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/ilyakaznacheev/cleanenv"
+)
 
 type Config struct {
-	Env  string      `yaml:"env" env-default:"dev"`
-	SMTP EmailConfig `yaml:"smtp"`
+	Env    string       `yaml:"env" env-default:"dev"`
+	Server ServerConfig `yaml:"server"`
+	SMTP   EmailConfig  `yaml:"smtp"`
 }
 
 type EmailConfig struct {
@@ -18,4 +23,14 @@ type ServerConfig struct {
 	Port        int           `yaml:"port" env-required:"true"`
 	Timeout     time.Duration `yaml:"timeout" env-required:"true"`
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-required:"true"`
+}
+
+func MustLoad(path string) *Config {
+	var cfg Config
+
+	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
+		panic(err)
+	}
+
+	return &cfg
 }
