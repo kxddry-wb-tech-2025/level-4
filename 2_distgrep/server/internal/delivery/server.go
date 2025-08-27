@@ -28,6 +28,7 @@ func NewServer(srvc Service) *Server {
 
 func (s *Server) registerRoutes() {
 	s.e.POST("/grep", s.grep)
+	s.e.GET("/health", s.health)
 }
 
 func (s *Server) grep(c echo.Context) error {
@@ -42,6 +43,10 @@ func (s *Server) grep(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) health(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (s *Server) Start(port int) error {
