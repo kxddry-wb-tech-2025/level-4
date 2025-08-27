@@ -21,10 +21,10 @@ type Server struct {
 }
 
 type Service interface {
-	CreateEvent(ctx context.Context, event models.CreateEventRequest) (models.Event, error)
+	CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error)
 	GetEvents(ctx context.Context) ([]models.Event, error)
 	GetEvent(ctx context.Context, id string) (models.Event, error)
-	UpdateEvent(ctx context.Context, id string, event models.UpdateEventRequest) (models.Event, error)
+	UpdateEvent(ctx context.Context, id string, event models.UpdateEventRequest) error
 	DeleteEvent(ctx context.Context, id string) error
 }
 

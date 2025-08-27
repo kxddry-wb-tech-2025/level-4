@@ -28,7 +28,7 @@ func (s *Server) createEvent(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": err.Error()})
 	}
 
-	event, err := s.svc.CreateEvent(c.Request().Context(), req)
+	id, err := s.svc.CreateEvent(c.Request().Context(), req)
 	if err != nil {
 		s.sendLog(log.Error(err, "failed to create event", echo.Map{
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
@@ -37,7 +37,7 @@ func (s *Server) createEvent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusCreated, event)
+	return c.JSON(http.StatusCreated, echo.Map{"id": id})
 }
 
 func (s *Server) getEvents(c echo.Context) error {
@@ -82,7 +82,7 @@ func (s *Server) updateEvent(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": err.Error()})
 	}
 
-	event, err := s.svc.UpdateEvent(c.Request().Context(), id, req)
+	err := s.svc.UpdateEvent(c.Request().Context(), id, req)
 	if err != nil {
 		if errors.Is(err, models.ErrNotFound) {
 			return c.JSON(http.StatusNotFound, echo.Map{"error": err.Error()})
@@ -96,7 +96,7 @@ func (s *Server) updateEvent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, event)
+	return c.NoContent(http.StatusOK)
 }
 
 func (s *Server) deleteEvent(c echo.Context) error {
