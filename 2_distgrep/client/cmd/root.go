@@ -16,6 +16,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+// Execute is the main entry point for the CLI application
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {

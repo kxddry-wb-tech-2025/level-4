@@ -13,6 +13,7 @@ import (
 	"sync"
 )
 
+// Run is the main function for running the grep service
 func Run(pattern string, files []string, addrs []string, flags models.GrepFlags, quorum int) error {
 	aliveServers := make([]*models.ParsedAddr, 0, len(addrs))
 	for i := range addrs {
@@ -103,6 +104,7 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags,
 	return nil
 }
 
+// createTasksWithContext creates tasks with context for each server
 func createTasksWithContext(lines []string, pattern string, flags models.GrepFlags, numServers, offset int) []models.Task {
 	out := make([]models.Task, 0, numServers)
 	ctxB := flags.Before
@@ -126,6 +128,7 @@ func createTasksWithContext(lines []string, pattern string, flags models.GrepFla
 	return out
 }
 
+// openFile opens a file and returns its lines
 func openFile(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -141,6 +144,7 @@ func openFile(filename string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
+// openInput opens an input file or stdin
 func openInput(name string) ([]string, error) {
 	if name == "-" {
 		scanner := bufio.NewScanner(os.Stdin)
@@ -153,6 +157,7 @@ func openInput(name string) ([]string, error) {
 	return openFile(name)
 }
 
+// printBlocksNonOverlapping prints blocks of lines non-overlapping
 func printBlocksNonOverlapping(filename string, blocks []models.FoundBlock, flags models.GrepFlags, printFileName bool) {
 	if len(blocks) == 0 {
 		return
