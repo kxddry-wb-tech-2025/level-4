@@ -18,6 +18,7 @@ var (
 	fixedstring  bool
 	printNumbers bool
 	addrs        []string
+	quorum       int
 )
 
 var grepCmd = &cobra.Command{
@@ -29,8 +30,8 @@ var grepCmd = &cobra.Command{
 		files := args[1:]
 
 		if len(files) == 0 {
-			fmt.Println("No files provided")
-			return
+			// Read from stdin if no files provided
+			files = []string{"-"}
 		}
 
 		// Handle context flag which sets both before and after
@@ -51,7 +52,7 @@ var grepCmd = &cobra.Command{
 			CountOnly:    countOnly,
 		}
 
-		if err := service.Run(pattern, files, addrs, flags); err != nil {
+		if err := service.Run(pattern, files, addrs, flags, quorum); err != nil {
 			fmt.Println("Error:", err)
 		}
 	},
@@ -67,4 +68,5 @@ func init() {
 	grepCmd.Flags().BoolVarP(&fixedstring, "fixed-string", "F", false, "Interpret PATTERN as a fixed string, not a regular expression")
 	grepCmd.Flags().BoolVarP(&printNumbers, "print-numbers", "n", false, "Print line numbers with output lines")
 	grepCmd.Flags().StringSliceVar(&addrs, "addrs", nil, "Comma-separated list of server addresses")
+	grepCmd.Flags().IntVar(&quorum, "quorum", 0, "Quorum of successful servers required (default: majority)")
 }

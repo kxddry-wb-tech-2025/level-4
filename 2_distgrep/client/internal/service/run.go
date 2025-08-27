@@ -6,7 +6,6 @@ import (
 	"client/internal/helpers/parser"
 	"client/internal/models"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,7 +13,7 @@ import (
 	"sync"
 )
 
-func Run(pattern string, files []string, addrs []string, flags models.GrepFlags) error {
+func Run(pattern string, files []string, addrs []string, flags models.GrepFlags, quorum int) error {
 	aliveServers := make([]*models.ParsedAddr, 0, len(addrs))
 	for i := range addrs {
 		parsed, err := parser.ParseAddress(addrs[i], "http")
@@ -37,13 +36,17 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags)
 		}
 	}
 	if len(aliveServers) == 0 {
-		return errors.New("no alive servers found")
+		return fmt.Errorf("no alive servers found")
+	}
+
+	if quorum <= 0 || quorum > len(aliveServers) {
+		quorum = len(aliveServers)/2 + 1
 	}
 	wg := new(sync.WaitGroup)
 
 	for i, file := range files {
 		fmt.Println(file)
-		lines, err := openFile(file)
+		lines, err := openInput(file)
 		if err != nil {
 			return err
 		}
@@ -52,6 +55,7 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags)
 
 		allBlocks := make([]models.FoundBlock, 0, len(tasks))
 		var mu sync.Mutex
+		var successCount int
 
 		for j, task := range tasks {
 			addr := aliveServers[j%len(aliveServers)]
@@ -85,12 +89,17 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags)
 
 				mu.Lock()
 				allBlocks = append(allBlocks, result.FoundBlocks...)
+				successCount++
 				mu.Unlock()
 			}(addr, task)
 		}
 		wg.Wait()
 
-		printBlocksNonOverlapping(file, allBlocks, flags)
+		if successCount >= quorum {
+			printBlocksNonOverlapping(file, allBlocks, flags)
+		} else {
+			return fmt.Errorf("quorum not reached for %s: got %d, need %d", file, successCount, quorum)
+		}
 	}
 	return nil
 }
@@ -131,6 +140,18 @@ func openFile(filename string) ([]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+func openInput(name string) ([]string, error) {
+	if name == "-" {
+		scanner := bufio.NewScanner(os.Stdin)
+		lines := make([]string, 0)
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+		return lines, scanner.Err()
+	}
+	return openFile(name)
 }
 
 func printBlocksNonOverlapping(filename string, blocks []models.FoundBlock, flags models.GrepFlags) {
