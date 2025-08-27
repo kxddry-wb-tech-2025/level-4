@@ -11,11 +11,11 @@ import (
 )
 
 type EventRepository interface {
-	Create(event models.CreateEventRequest) (string, error)
-	GetAll() ([]models.Event, error)
-	Get(id string) (models.Event, error)
-	Update(id string, event models.UpdateEventRequest) error
-	Delete(id string) error
+	Create(ctx context.Context, event models.CreateEventRequest) (string, error)
+	GetAll(ctx context.Context) ([]models.Event, error)
+	Get(ctx context.Context, id string) (models.Event, error)
+	Update(ctx context.Context, id string, event models.UpdateEventRequest) error
+	Delete(ctx context.Context, id string) error
 }
 
 type Service struct {
@@ -50,7 +50,7 @@ func (s *Service) sendJob(ctx context.Context, job any) {
 }
 
 func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error) {
-	id, err := s.repo.Create(event)
+	id, err := s.repo.Create(ctx, event)
 	if err != nil {
 		s.sendLog(ctx, log.Error(err, "failed to create event", map[string]any{
 			"op": "createEvent",
@@ -72,7 +72,7 @@ func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventReque
 }
 
 func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
-	events, err := s.repo.GetAll()
+	events, err := s.repo.GetAll(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return []models.Event{}, nil
@@ -88,7 +88,7 @@ func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
 }
 
 func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error) {
-	event, err := s.repo.Get(id)
+	event, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.Event{}, models.ErrNotFound
@@ -104,7 +104,7 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 }
 
 func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateEventRequest) error {
-	old, err := s.repo.Get(id)
+	old, err := s.repo.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.ErrNotFound
@@ -134,7 +134,7 @@ func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateE
 		})
 	}
 
-	return s.repo.Update(id, new)
+	return s.repo.Update(ctx, id, new)
 }
 
 func (s *Service) DeleteEvent(ctx context.Context, id string) error {
@@ -142,7 +142,7 @@ func (s *Service) DeleteEvent(ctx context.Context, id string) error {
 		EventID: id,
 	})
 
-	err := s.repo.Delete(id)
+	err := s.repo.Delete(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.ErrNotFound
