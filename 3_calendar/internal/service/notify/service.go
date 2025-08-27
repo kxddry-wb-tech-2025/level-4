@@ -10,13 +10,13 @@ import (
 )
 
 type NotificationRepository interface {
-	Create(notification models.Notification) error
-	GetIDsByEventID(eventID string) ([]string, error)
-	DeleteAllByEventID(eventID string) error
+	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
+	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
+	DeleteAllByEventID(ctx context.Context, eventID string) error
 }
 
 type NotificationSender interface {
-	Send(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
+	Send(ctx context.Context, notification models.Notification) error
 	Cancel(ctx context.Context, id string) error
 }
 
@@ -78,7 +78,7 @@ func (s *Service) sendLog(ctx context.Context, entry log.Entry) {
 }
 
 func (s *Service) createNotification(ctx context.Context, notification models.CreateNotificationRequest) error {
-	id, err := s.sender.Send(ctx, notification)
+	id, err := s.repo.Create(ctx, notification)
 	if err != nil {
 		s.sendLog(ctx, log.Error(err, "failed to create notification", echo.Map{
 			"op": "createNotification",
@@ -87,7 +87,7 @@ func (s *Service) createNotification(ctx context.Context, notification models.Cr
 		return err
 	}
 
-	err = s.repo.Create(models.Notification{
+	err = s.sender.Send(ctx, models.Notification{
 		EventID:   notification.EventID,
 		ID:        id,
 		Message:   notification.Message,
@@ -95,8 +95,9 @@ func (s *Service) createNotification(ctx context.Context, notification models.Cr
 		Channel:   notification.Channel,
 		Recipient: notification.Recipient,
 	})
+
 	if err != nil {
-		s.sendLog(ctx, log.Error(err, "failed to create notification", echo.Map{
+		s.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
 			"op": "createNotification",
 		}))
 
@@ -107,7 +108,7 @@ func (s *Service) createNotification(ctx context.Context, notification models.Cr
 }
 
 func (s *Service) deleteNotifications(ctx context.Context, eventID string) error {
-	ids, err := s.repo.GetIDsByEventID(eventID)
+	ids, err := s.repo.GetIDsByEventID(ctx, eventID)
 	if err != nil {
 		s.sendLog(ctx, log.Error(err, "failed to get notification IDs", echo.Map{
 			"op": "deleteNotifications",
@@ -125,7 +126,7 @@ func (s *Service) deleteNotifications(ctx context.Context, eventID string) error
 		}
 	}
 
-	err = s.repo.DeleteAllByEventID(eventID)
+	err = s.repo.DeleteAllByEventID(ctx, eventID)
 	if err != nil {
 		s.sendLog(ctx, log.Error(err, "failed to delete notifications", echo.Map{
 			"op": "deleteNotifications",
