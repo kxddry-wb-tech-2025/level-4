@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"fmt"
 	"grep-server/internal/models"
 	"net/http"
 
@@ -43,6 +44,6 @@ func (s *Server) grep(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) Start(addr string) error {
-	return s.e.Start(addr)
+func (s *Server) Start(port int) error {
+	return s.e.Start(fmt.Sprintf(":%d", port))
 }
