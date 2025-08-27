@@ -1,5 +1,6 @@
 package models
 
+// GrepFlags is the struct for the grep flags
 type GrepFlags struct {
 	FixedString  bool `json:"fixed_string"`
 	PrintNumbers bool `json:"print_numbers"`
@@ -10,6 +11,7 @@ type GrepFlags struct {
 	CountOnly    bool `json:"count_only"`
 }
 
+// Request is the struct for the request
 type Request struct {
 	ID              int       `json:"id"`
 	Pattern         string    `json:"pattern"`
@@ -20,11 +22,13 @@ type Request struct {
 	Flags           GrepFlags `json:"flags"`
 }
 
+// Response is the struct for the response
 type Response struct {
 	TaskID      int          `json:"task_id"`
 	FoundBlocks []FoundBlock `json:"found_blocks"`
 }
 
+// FoundBlock is the struct for the found block
 type FoundBlock struct {
 	StartLineNumber int      `json:"start_line_number"`
 	Lines           []string `json:"lines"`

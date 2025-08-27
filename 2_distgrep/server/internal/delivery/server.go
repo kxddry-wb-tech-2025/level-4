@@ -8,15 +8,18 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Server is the main server struct
 type Server struct {
 	e    *echo.Echo
 	srvc Service
 }
 
+// Service is the interface for the service layer
 type Service interface {
 	Grep(req models.Request) (models.Response, error)
 }
 
+// NewServer creates a new server
 func NewServer(srvc Service) *Server {
 	e := echo.New()
 
@@ -26,11 +29,13 @@ func NewServer(srvc Service) *Server {
 	return s
 }
 
+// registerRoutes registers the routes for the server
 func (s *Server) registerRoutes() {
 	s.e.POST("/grep", s.grep)
 	s.e.GET("/health", s.health)
 }
 
+// grep is the handler for the grep endpoint
 func (s *Server) grep(c echo.Context) error {
 	var req models.Request
 	if err := c.Bind(&req); err != nil {
@@ -45,10 +50,12 @@ func (s *Server) grep(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+// health is the handler for the health endpoint
 func (s *Server) health(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// Start starts the server
 func (s *Server) Start(port int) error {
 	return s.e.Start(fmt.Sprintf(":%d", port))
 }
