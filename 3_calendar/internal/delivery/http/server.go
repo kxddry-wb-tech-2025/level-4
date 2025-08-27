@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -29,6 +30,7 @@ type Service interface {
 
 func NewServer(logs chan<- log.Entry, sCfg config.ServerConfig, service Service) *Server {
 	e := echo.New()
+	e.Validator = &Validator{validator: validator.New()}
 	e.Server.ReadTimeout = sCfg.Timeout
 	e.Server.WriteTimeout = sCfg.Timeout
 	e.Server.IdleTimeout = sCfg.IdleTimeout
@@ -43,6 +45,14 @@ func NewServer(logs chan<- log.Entry, sCfg config.ServerConfig, service Service)
 	s.setup()
 
 	return s
+}
+
+type Validator struct {
+	validator *validator.Validate
+}
+
+func (v *Validator) Validate(i interface{}) error {
+	return v.validator.Struct(i)
 }
 
 func (s *Server) setup() {
