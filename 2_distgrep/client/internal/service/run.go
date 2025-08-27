@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -97,6 +99,25 @@ func Run(pattern string, files []string, addrs []string, flags models.GrepFlags,
 		wg.Wait()
 
 		if successCount >= quorum {
+			// Special aggregation for count-only: sum counts from all servers
+			if flags.CountOnly {
+				total := 0
+				for _, b := range allBlocks {
+					for _, s := range b.Lines {
+						n, err := strconv.Atoi(strings.TrimSpace(s))
+						if err == nil {
+							total += n
+						}
+					}
+				}
+				if len(files) > 1 {
+					fmt.Printf("%s:%d\n", file, total)
+				} else {
+					fmt.Printf("%d\n", total)
+				}
+				continue
+			}
+
 			printBlocksNonOverlapping(file, allBlocks, flags, len(files) > 1)
 		} else {
 			return fmt.Errorf("quorum not reached for %s: got %d, need %d", file, successCount, quorum)
