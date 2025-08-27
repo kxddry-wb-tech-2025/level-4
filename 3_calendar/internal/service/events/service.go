@@ -2,7 +2,9 @@ package events
 
 import (
 	"calendar/internal/models"
+	"calendar/internal/storage"
 	"context"
+	"errors"
 )
 
 type EventRepository interface {
@@ -33,6 +35,10 @@ func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventReque
 func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
 	events, err := s.repo.GetAll()
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return []models.Event{}, nil
+		}
+
 		return nil, err
 	}
 
@@ -42,6 +48,10 @@ func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
 func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error) {
 	event, err := s.repo.Get(id)
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return models.Event{}, models.ErrNotFound
+		}
+
 		return models.Event{}, err
 	}
 
@@ -51,6 +61,10 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 func (s *Service) UpdateEvent(ctx context.Context, id string, event models.UpdateEventRequest) error {
 	err := s.repo.Update(id, event)
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return models.ErrNotFound
+		}
+
 		return err
 	}
 
@@ -60,6 +74,10 @@ func (s *Service) UpdateEvent(ctx context.Context, id string, event models.Updat
 func (s *Service) DeleteEvent(ctx context.Context, id string) error {
 	err := s.repo.Delete(id)
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return models.ErrNotFound
+		}
+
 		return err
 	}
 
