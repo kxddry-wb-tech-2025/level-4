@@ -38,9 +38,16 @@ type Worker struct {
 	logs   chan<- log.Entry
 }
 
+// Logs returns the channel for the logs
+func (w *Worker) Logs() <-chan log.Entry {
+	logs := make(chan log.Entry, 100)
+	w.logs = logs
+	return logs
+}
+
 // NewWorker creates a new worker
-func NewWorker(st Storage, sender NotificationSender, repo NotificationRepository, logs chan<- log.Entry) *Worker {
-	return &Worker{st: st, sender: sender, repo: repo, logs: logs}
+func NewWorker(st Storage, sender NotificationSender, repo NotificationRepository) *Worker {
+	return &Worker{st: st, sender: sender, repo: repo}
 }
 
 // sendLog sends a log entry
@@ -83,50 +90,48 @@ func (w *Worker) DeleteNotification(ctx context.Context, id string) error {
 
 // Handle handles the worker
 func (w *Worker) Handle(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				ids, err := w.st.PopDue(ctx, "notify:due", 100)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ids, err := w.st.PopDue(ctx, "notify:due", 100)
+			if err != nil {
+				w.sendLog(ctx, log.Error(err, "failed to pop due", echo.Map{
+					"op": "Handle",
+				}))
+				continue
+			}
+
+			for _, id := range ids {
+				notification, err := w.repo.GetByID(ctx, id)
 				if err != nil {
-					w.sendLog(ctx, log.Error(err, "failed to pop due", echo.Map{
-						"op": "Handle",
+					w.sendLog(ctx, log.Error(err, "failed to get notification", echo.Map{
+						"op":      "Handle",
+						"notifID": id,
 					}))
 					continue
 				}
 
-				for _, id := range ids {
-					notification, err := w.repo.GetByID(ctx, id)
-					if err != nil {
-						w.sendLog(ctx, log.Error(err, "failed to get notification", echo.Map{
-							"op":      "Handle",
-							"notifID": id,
-						}))
-						continue
-					}
+				if err := w.sender.Send(ctx, notification); err != nil {
+					w.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
+						"op":      "Handle",
+						"notifID": id,
+					}))
+					// simple retry after 1 minute
+					_ = w.st.Enqueue(ctx, id, time.Now().Add(time.Minute))
+					continue
+				}
 
-					if err := w.sender.Send(ctx, notification); err != nil {
-						w.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
-							"op":      "Handle",
-							"notifID": id,
-						}))
-						// simple retry after 1 minute
-						_ = w.st.Enqueue(ctx, id, time.Now().Add(time.Minute))
-						continue
-					}
-
-					if err := w.repo.DeleteByID(ctx, id); err != nil {
-						w.sendLog(ctx, log.Error(err, "failed to delete notification after send", echo.Map{
-							"op":      "Handle",
-							"notifID": id,
-						}))
-					}
+				if err := w.repo.DeleteByID(ctx, id); err != nil {
+					w.sendLog(ctx, log.Error(err, "failed to delete notification after send", echo.Map{
+						"op":      "Handle",
+						"notifID": id,
+					}))
 				}
 			}
 		}
-	}()
+	}
 }

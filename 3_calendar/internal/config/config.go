@@ -9,11 +9,11 @@ import (
 
 // Config is the main configuration for the application
 type Config struct {
-	Env     string        `yaml:"env" env-default:"dev"`
-	Server  ServerConfig  `yaml:"server"`
-	SMTP    EmailConfig   `yaml:"smtp"`
-	Storage StorageConfig `yaml:"storage"`
-	Redis   RedisConfig   `yaml:"redis"`
+	Env     string         `yaml:"env" env-default:"dev"`
+	Server  *ServerConfig  `yaml:"server"`
+	SMTP    *EmailConfig   `yaml:"smtp"`
+	Storage *StorageConfig `yaml:"storage"`
+	Redis   *RedisConfig   `yaml:"redis"`
 }
 
 // RedisConfig is the configuration for the Redis database

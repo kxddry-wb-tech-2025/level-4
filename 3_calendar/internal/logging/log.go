@@ -9,7 +9,7 @@ import (
 
 // Logger is a wrapper around zap.Logger.
 type Logger struct {
-	*zap.Logger
+	log *zap.Logger
 }
 
 // New creates a new Logger instance.
@@ -37,7 +37,7 @@ func New(env string) *Logger {
 	}
 
 	zl := zap.Must(cfg.Build())
-	return &Logger{Logger: zl}
+	return &Logger{log: zl}
 }
 
 // Listen consumes log entries from the channel and writes them using Zap.
@@ -49,19 +49,23 @@ func (l *Logger) Listen(entries <-chan appLog.Entry) {
 	}()
 }
 
+func (l *Logger) Sync() error {
+	return l.log.Sync()
+}
+
 func (l *Logger) writeEntry(e appLog.Entry) {
 	fields := fieldsFromEntry(e)
 	switch e.Level {
 	case appLog.LevelDebug:
-		l.Debug(e.Message, fields...)
+		l.log.Debug(e.Message, fields...)
 	case appLog.LevelInfo:
-		l.Info(e.Message, fields...)
+		l.log.Info(e.Message, fields...)
 	case appLog.LevelWarn:
-		l.Warn(e.Message, fields...)
+		l.log.Warn(e.Message, fields...)
 	case appLog.LevelError:
-		l.Error(e.Message, fields...)
+		l.log.Error(e.Message, fields...)
 	default:
-		l.Info(e.Message, fields...)
+		l.log.Info(e.Message, fields...)
 	}
 }
 

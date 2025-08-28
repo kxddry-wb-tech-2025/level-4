@@ -26,6 +26,13 @@ type Service struct {
 	jobs chan<- any
 }
 
+// Logs returns the channel for the logs
+func (s *Service) Logs() <-chan log.Entry {
+	logs := make(chan log.Entry, 100)
+	s.logs = logs
+	return logs
+}
+
 // NewService creates a new event service
 func NewService(repo EventRepository, jobs chan<- any) *Service {
 	return &Service{repo: repo, jobs: jobs}

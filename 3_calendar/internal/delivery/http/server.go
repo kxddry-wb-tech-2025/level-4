@@ -32,7 +32,7 @@ type Service interface {
 }
 
 // NewServer creates a new HTTP server
-func NewServer(ctx context.Context, sCfg config.ServerConfig, service Service) *Server {
+func NewServer(ctx context.Context, sCfg *config.ServerConfig, service Service) *Server {
 	e := echo.New()
 	e.Validator = &Validator{validator: validator.New()}
 	e.Server.ReadTimeout = sCfg.Timeout
