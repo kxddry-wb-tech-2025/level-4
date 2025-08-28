@@ -1,0 +1,26 @@
+env: dev
+
+server:
+  port: 8080
+  timeout: 30s
+  idle_timeout: 60s
+
+smtp:
+  host: mailhog
+  port: 1025
+  username: ""
+
+redis:
+  host: redis
+  port: 6379
+  username: default
+  database: 0
+
+storage:
+  host: postgres
+  port: 5432
+  username: calendar
+  database: calendar
+  sslmode: disable
+
+

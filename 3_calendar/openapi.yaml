@@ -1,7 +1,9 @@
 openapi: 3.0.0
-title: Calendar API
-version: 1.0.0
-description: API for managing calendar events
+info:
+  title: Calendar API
+  version: 1.0.0
+  description: API for managing calendar events
+
 servers:
   - url: http://localhost:8080
     description: Local development server
