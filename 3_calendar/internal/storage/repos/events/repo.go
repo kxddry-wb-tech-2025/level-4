@@ -23,12 +23,14 @@ func NewRepository(ctx context.Context, pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool, mainCtx: ctx}
 }
 
+// Logs returns the logs channel.
 func (r *Repository) Logs() <-chan log.Entry {
 	logs := make(chan log.Entry, log.ChannelCapacity)
 	r.logs = logs
 	return logs
 }
 
+// sendLog sends a log entry to the logs channel.
 func (r *Repository) sendLog(entry log.Entry) {
 	if r.logs == nil {
 		return
@@ -49,7 +51,7 @@ func (r *Repository) sendLog(entry log.Entry) {
 	}
 }
 
-// Create creates a new event
+// Create creates a new event.
 func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest) (string, error) {
 	query := `
 	INSERT INTO events (title, description, start, end, notify, email)

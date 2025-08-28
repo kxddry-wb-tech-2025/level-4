@@ -14,10 +14,12 @@ var (
 
 type txKey struct{}
 
+// WithTx adds a transaction to the context.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
+// GetTx gets a transaction from the context.
 func GetTx(ctx context.Context) (pgx.Tx, bool) {
 	tx, ok := ctx.Value(txKey{}).(pgx.Tx)
 	return tx, ok

@@ -9,22 +9,26 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Repository is the repository for the archives.
 type Repository struct {
 	pool    *pgxpool.Pool
 	logs    chan<- log.Entry
 	mainCtx context.Context
 }
 
+// NewRepository creates a new repository.
 func NewRepository(ctx context.Context, pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool, mainCtx: ctx}
 }
 
+// Logs returns the logs channel.
 func (r *Repository) Logs() <-chan log.Entry {
 	logs := make(chan log.Entry, log.ChannelCapacity)
 	r.logs = logs
 	return logs
 }
 
+// sendLog sends a log entry to the logs channel.
 func (r *Repository) sendLog(entry log.Entry) {
 	if r.logs == nil {
 		return
@@ -45,6 +49,7 @@ func (r *Repository) sendLog(entry log.Entry) {
 	}
 }
 
+// Archive archives an event.
 func (r *Repository) Archive(ctx context.Context, event models.Event) error {
 	query := `
 	INSERT INTO archives (event_id, title, description, start, end, notify, email)

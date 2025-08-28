@@ -11,8 +11,7 @@ import (
 	notifySvc "calendar/internal/service/notify"
 	workerSvc "calendar/internal/service/worker"
 	redisStore "calendar/internal/storage/redis"
-	eventsRepo "calendar/internal/storage/repos/events"
-	notifyRepo "calendar/internal/storage/repos/notifications"
+	"calendar/internal/storage/txmanager"
 	"context"
 	"os"
 
@@ -40,26 +39,21 @@ func main() {
 	emailClient := smtp.NewEmailClient(cfg.SMTP)
 	sender := notifyDelivery.NewSender(emailClient, cfg.SMTP)
 
-	eRepo, err := eventsRepo.NewRepository(mainCtx, cfg.Storage.DSN())
-	if err != nil {
-		panic(err)
-	}
-	// ignore for now
-	nRepo, err := notifyRepo.NewRepository(mainCtx, cfg.Storage.DSN())
+	txmgr, err := txmanager.New(mainCtx, cfg.Storage.DSN())
 	if err != nil {
 		panic(err)
 	}
 
-	w := workerSvc.NewWorker(redis, sender, nRepo)
+	w := workerSvc.NewWorker(redis, txmgr.AsWorkerTxManager(), sender)
 	wlogs := w.Logs()
 
 	go w.Handle(mainCtx)
 
 	jobs := make(chan any, 100)
 
-	eSvc := eventsSvc.NewService(mainCtx, eRepo, jobs)
+	eSvc := eventsSvc.NewService(mainCtx, txmgr.AsEventsTxManager(), jobs)
 	elogs := eSvc.Logs()
-	nSvc := notifySvc.NewService(mainCtx, nRepo, w)
+	nSvc := notifySvc.NewService(mainCtx, w)
 	nlogs := nSvc.Logs()
 
 	go nSvc.Process(jobs)

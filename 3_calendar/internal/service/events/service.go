@@ -19,17 +19,19 @@ type EventRepository interface {
 	service.EventDeleter
 }
 
+// Tx is the interface for the transaction.
 type Tx interface {
 	EventRepository
 	Commit() error
 	Rollback() error
 }
 
+// TxManager is the interface for the transaction manager.
 type TxManager interface {
 	Do(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error
 }
 
-// Service is the struct for the event service
+// Service is the struct for the event service.
 type Service struct {
 	txmgr   TxManager
 	logs    chan<- log.Entry

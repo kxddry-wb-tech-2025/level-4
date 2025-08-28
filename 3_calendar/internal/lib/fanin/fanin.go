@@ -2,6 +2,7 @@ package fanin
 
 import "context"
 
+// FanIn merges multiple channels into a single channel.
 func FanIn[T any](ctx context.Context, chans ...<-chan T) <-chan T {
 	out := make(chan T)
 

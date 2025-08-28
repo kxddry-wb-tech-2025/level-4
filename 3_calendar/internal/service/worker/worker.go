@@ -24,12 +24,14 @@ type NotificationRepository interface {
 	service.NotificationGetter
 }
 
+// Tx is the interface for the transaction.
 type Tx interface {
 	NotificationRepository
 	Commit() error
 	Rollback() error
 }
 
+// TxManager is the interface for the transaction manager.
 type TxManager interface {
 	Do(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error
 }
@@ -96,6 +98,33 @@ func (w *Worker) AddNotification(ctx context.Context, n models.CreateNotificatio
 			return err
 		}
 		return nil
+	})
+}
+
+// DeleteAllNotificationsByEventID deletes all scheduled notifications for an event
+func (w *Worker) DeleteAllNotificationsByEventID(ctx context.Context, eventID string) error {
+	return w.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		ids, err := tx.GetNotificationIDsByEventID(ctx, eventID)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			// remove from queue best-effort
+			_ = w.st.Remove(ctx, id)
+			if err := tx.DeleteNotificationByID(ctx, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// DeleteNotificationByID deletes a specific notification by id and removes it from the queue
+func (w *Worker) DeleteNotificationByID(ctx context.Context, id string) error {
+	// best-effort removal from queue
+	_ = w.st.Remove(ctx, id)
+	return w.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		return tx.DeleteNotificationByID(ctx, id)
 	})
 }
 

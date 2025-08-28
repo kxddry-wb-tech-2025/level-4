@@ -49,10 +49,12 @@ func (l *Logger) Listen(entries <-chan appLog.Entry) {
 	}()
 }
 
+// Sync flushes any buffered log entries.
 func (l *Logger) Sync() error {
 	return l.log.Sync()
 }
 
+// writeEntry writes a log entry to the logger.
 func (l *Logger) writeEntry(e appLog.Entry) {
 	fields := fieldsFromEntry(e)
 	switch e.Level {
