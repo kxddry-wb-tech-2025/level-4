@@ -2,6 +2,11 @@ package log
 
 import "time"
 
+// ChannelCapacity is the capacity of the log channel
+const (
+	ChannelCapacity = 100
+)
+
 // Error creates a new error log entry
 func Error(err error, msg string, meta map[string]any) Entry {
 	return Entry{

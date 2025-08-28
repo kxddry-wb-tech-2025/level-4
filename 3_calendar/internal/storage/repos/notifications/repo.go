@@ -2,26 +2,52 @@ package notifications
 
 import (
 	"calendar/internal/models"
+	"calendar/internal/models/log"
 	"calendar/internal/storage"
 	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v4"
 )
 
 // Repository provides DB access for notifications
 type Repository struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	logs    chan<- log.Entry
+	mainCtx context.Context
 }
 
 // NewRepository creates a new repository
-func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
-	pool, err := pgxpool.New(ctx, connStr)
-	if err != nil {
-		return nil, err
+func NewRepository(ctx context.Context, pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool, mainCtx: ctx}
+}
+
+// Logs returns the channel for the logs
+func (r *Repository) Logs() <-chan log.Entry {
+	logs := make(chan log.Entry, log.ChannelCapacity)
+	r.logs = logs
+	return logs
+}
+
+func (r *Repository) sendLog(entry log.Entry) {
+	if r.logs == nil {
+		return
 	}
-	return &Repository{pool: pool}, pool.Ping(ctx)
+	if entry.Level >= log.LevelWarn {
+		go func() {
+			select {
+			case r.logs <- entry:
+			case <-r.mainCtx.Done():
+			}
+		}()
+	} else {
+		select {
+		case r.logs <- entry:
+		default:
+		}
+	}
 }
 
 // Create creates a new notification
@@ -31,7 +57,16 @@ func (r *Repository) Create(ctx context.Context, notification models.CreateNotif
 	VALUES ($1, $2, $3, $4, $5)
 	RETURNING id
 	`
-	row := r.pool.QueryRow(ctx, query, notification.EventID, notification.Message, notification.When, notification.Channel, notification.Recipient)
+	var row pgx.Row
+	if tx, ok := storage.GetTx(ctx); ok {
+		row = tx.QueryRow(ctx, query, notification.EventID, notification.Message, notification.When, notification.Channel, notification.Recipient)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", echo.Map{
+			"op":   "Create",
+			"repo": "notifications",
+		}))
+		row = r.pool.QueryRow(ctx, query, notification.EventID, notification.Message, notification.When, notification.Channel, notification.Recipient)
+	}
 	var id string
 	err := row.Scan(&id)
 	return id, err
@@ -44,7 +79,17 @@ func (r *Repository) GetIDsByEventID(ctx context.Context, eventID string) ([]str
 	FROM notifications
 	WHERE event_id = $1
 	`
-	rows, err := r.pool.Query(ctx, query, eventID)
+	var rows pgx.Rows
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		rows, err = tx.Query(ctx, query, eventID)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", echo.Map{
+			"op":   "GetIDsByEventID",
+			"repo": "notifications",
+		}))
+		rows, err = r.pool.Query(ctx, query, eventID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +117,16 @@ func (r *Repository) DeleteAllByEventID(ctx context.Context, eventID string) err
 	DELETE FROM notifications
 	WHERE event_id = $1
 	`
-	_, err := r.pool.Exec(ctx, query, eventID)
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		_, err = tx.Exec(ctx, query, eventID)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", echo.Map{
+			"op":   "DeleteAllByEventID",
+			"repo": "notifications",
+		}))
+		_, err = r.pool.Exec(ctx, query, eventID)
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return storage.ErrNotFound
@@ -89,7 +143,16 @@ func (r *Repository) GetByID(ctx context.Context, id string) (models.Notificatio
 	FROM notifications
 	WHERE id = $1
 	`
-	row := r.pool.QueryRow(ctx, query, id)
+	var row pgx.Row
+	if tx, ok := storage.GetTx(ctx); ok {
+		row = tx.QueryRow(ctx, query, id)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", echo.Map{
+			"op":   "GetByID",
+			"repo": "notifications",
+		}))
+		row = r.pool.QueryRow(ctx, query, id)
+	}
 	var n models.Notification
 	if err := row.Scan(&n.ID, &n.EventID, &n.Message, &n.When, &n.Channel, &n.Recipient); err != nil {
 		return models.Notification{}, err
@@ -103,7 +166,16 @@ func (r *Repository) DeleteByID(ctx context.Context, id string) error {
 	DELETE FROM notifications
 	WHERE id = $1
 	`
-	_, err := r.pool.Exec(ctx, query, id)
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		_, err = tx.Exec(ctx, query, id)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", echo.Map{
+			"op":   "DeleteByID",
+			"repo": "notifications",
+		}))
+		_, err = r.pool.Exec(ctx, query, id)
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return storage.ErrNotFound

@@ -40,7 +40,7 @@ type Worker struct {
 
 // Logs returns the channel for the logs
 func (w *Worker) Logs() <-chan log.Entry {
-	logs := make(chan log.Entry, 100)
+	logs := make(chan log.Entry, log.ChannelCapacity)
 	w.logs = logs
 	return logs
 }
@@ -56,12 +56,19 @@ func (w *Worker) sendLog(ctx context.Context, entry log.Entry) {
 		return
 	}
 
-	go func(ctx context.Context) {
+	if entry.Level >= log.LevelWarn {
+		go func() {
+			select {
+			case w.logs <- entry:
+			case <-ctx.Done():
+			}
+		}()
+	} else {
 		select {
 		case w.logs <- entry:
-		case <-ctx.Done():
+		default:
 		}
-	}(ctx)
+	}
 }
 
 // AddNotification schedules a notification to be sent at a specific time.

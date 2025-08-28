@@ -53,7 +53,7 @@ func NewServer(ctx context.Context, sCfg *config.ServerConfig, service Service) 
 
 // Logs returns the channel for the logs
 func (s *Server) Logs() <-chan log.Entry {
-	logs := make(chan log.Entry, 100)
+	logs := make(chan log.Entry, log.ChannelCapacity)
 	s.logs = logs
 	return logs
 }

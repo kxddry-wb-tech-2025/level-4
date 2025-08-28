@@ -2,6 +2,7 @@ package events
 
 import (
 	"calendar/internal/models"
+	"calendar/internal/models/log"
 	"calendar/internal/storage"
 	"context"
 	"errors"
@@ -12,17 +13,40 @@ import (
 
 // Repository is a repository for events
 type Repository struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	logs    chan<- log.Entry
+	mainCtx context.Context
 }
 
 // NewRepository creates a new repository
-func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
-	pool, err := pgxpool.New(ctx, connStr)
-	if err != nil {
-		return nil, err
+func NewRepository(ctx context.Context, pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool, mainCtx: ctx}
+}
+
+func (r *Repository) Logs() <-chan log.Entry {
+	logs := make(chan log.Entry, log.ChannelCapacity)
+	r.logs = logs
+	return logs
+}
+
+func (r *Repository) sendLog(entry log.Entry) {
+	if r.logs == nil {
+		return
 	}
 
-	return &Repository{pool: pool}, pool.Ping(ctx)
+	if entry.Level >= log.LevelWarn {
+		go func() {
+			select {
+			case r.logs <- entry:
+			case <-r.mainCtx.Done():
+			}
+		}()
+	} else {
+		select {
+		case r.logs <- entry:
+		default:
+		}
+	}
 }
 
 // Create creates a new event
@@ -32,7 +56,16 @@ func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest
 	VALUES ($1, $2, $3, $4, $5, $6)
 	RETURNING id
 	`
-	row := r.pool.QueryRow(ctx, query, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email)
+	var row pgx.Row
+	if tx, ok := storage.GetTx(ctx); ok {
+		row = tx.QueryRow(ctx, query, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", map[string]any{
+			"op":         "create",
+			"repository": "events",
+		}))
+		row = r.pool.QueryRow(ctx, query, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email)
+	}
 	var id string
 	err := row.Scan(&id)
 	return id, err
@@ -44,7 +77,17 @@ func (r *Repository) GetAll(ctx context.Context) ([]models.Event, error) {
 	SELECT id, title, description, start, end, notify, email
 	FROM events
 	`
-	rows, err := r.pool.Query(ctx, query)
+	var rows pgx.Rows
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		rows, err = tx.Query(ctx, query)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", map[string]any{
+			"op":         "get_all",
+			"repository": "events",
+		}))
+		rows, err = r.pool.Query(ctx, query)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +116,16 @@ func (r *Repository) Get(ctx context.Context, id string) (models.Event, error) {
 	FROM events
 	WHERE id = $1
 	`
-	row := r.pool.QueryRow(ctx, query, id)
+	var row pgx.Row
+	if tx, ok := storage.GetTx(ctx); ok {
+		row = tx.QueryRow(ctx, query, id)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", map[string]any{
+			"op":         "get",
+			"repository": "events",
+		}))
+		row = r.pool.QueryRow(ctx, query, id)
+	}
 	var event models.Event
 	err := row.Scan(&event.ID, &event.Title, &event.Description, &event.Start, &event.End, &event.Notify, &event.Email)
 	if err != nil {
@@ -89,7 +141,16 @@ func (r *Repository) Update(ctx context.Context, id string, event models.UpdateE
 	SET title = $1, description = $2, start = $3, end = $4, notify = $5, email = $6
 	WHERE id = $7
 	`
-	_, err := r.pool.Exec(ctx, query, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email, id)
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		_, err = tx.Exec(ctx, query, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email, id)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", map[string]any{
+			"op":         "update",
+			"repository": "events",
+		}))
+		_, err = r.pool.Exec(ctx, query, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email, id)
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return storage.ErrNotFound
@@ -105,7 +166,16 @@ func (r *Repository) Delete(ctx context.Context, id string) error {
 	DELETE FROM events
 	WHERE id = $1
 	`
-	_, err := r.pool.Exec(ctx, query, id)
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		_, err = tx.Exec(ctx, query, id)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", map[string]any{
+			"op":         "delete",
+			"repository": "events",
+		}))
+		_, err = r.pool.Exec(ctx, query, id)
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return storage.ErrNotFound

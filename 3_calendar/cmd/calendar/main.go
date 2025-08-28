@@ -44,6 +44,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	// ignore for now
 	nRepo, err := notifyRepo.NewRepository(mainCtx, cfg.Storage.DSN())
 	if err != nil {
 		panic(err)
@@ -56,12 +57,12 @@ func main() {
 
 	jobs := make(chan any, 100)
 
-	eSvc := eventsSvc.NewService(eRepo, jobs)
+	eSvc := eventsSvc.NewService(mainCtx, eRepo, jobs)
 	elogs := eSvc.Logs()
-	nSvc := notifySvc.NewService(nRepo, w)
+	nSvc := notifySvc.NewService(mainCtx, nRepo, w)
 	nlogs := nSvc.Logs()
 
-	go nSvc.Process(mainCtx, jobs)
+	go nSvc.Process(jobs)
 
 	srv := http.NewServer(mainCtx, cfg.Server, eSvc)
 	logs := srv.Logs()

@@ -21,34 +21,42 @@ type EventRepository interface {
 
 // Service is the struct for the event service
 type Service struct {
-	repo EventRepository
-	logs chan<- log.Entry
-	jobs chan<- any
+	repo    EventRepository
+	logs    chan<- log.Entry
+	jobs    chan<- any
+	mainCtx context.Context
 }
 
 // Logs returns the channel for the logs
 func (s *Service) Logs() <-chan log.Entry {
-	logs := make(chan log.Entry, 100)
+	logs := make(chan log.Entry, log.ChannelCapacity)
 	s.logs = logs
 	return logs
 }
 
 // NewService creates a new event service
-func NewService(repo EventRepository, jobs chan<- any) *Service {
-	return &Service{repo: repo, jobs: jobs}
+func NewService(ctx context.Context, repo EventRepository, jobs chan<- any) *Service {
+	return &Service{repo: repo, jobs: jobs, mainCtx: ctx}
 }
 
 // sendLog sends a log entry
-func (s *Service) sendLog(ctx context.Context, entry log.Entry) {
+func (s *Service) sendLog(entry log.Entry) {
 	if s.logs == nil {
 		return
 	}
-	go func(ctx context.Context) {
+	if entry.Level >= log.LevelWarn {
+		go func() {
+			select {
+			case s.logs <- entry:
+			case <-s.mainCtx.Done():
+			}
+		}()
+	} else {
 		select {
 		case s.logs <- entry:
-		case <-ctx.Done():
+		default:
 		}
-	}(ctx)
+	}
 }
 
 // sendJob sends a job to the job channel
@@ -65,7 +73,7 @@ func (s *Service) sendJob(ctx context.Context, job any) {
 func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error) {
 	id, err := s.repo.Create(ctx, event)
 	if err != nil {
-		s.sendLog(ctx, log.Error(err, "failed to create event", map[string]any{
+		s.sendLog(log.Error(err, "failed to create event", map[string]any{
 			"op": "createEvent",
 		}))
 		return "", err
@@ -91,7 +99,7 @@ func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
 		if errors.Is(err, storage.ErrNotFound) {
 			return []models.Event{}, nil
 		}
-		s.sendLog(ctx, log.Error(err, "failed to get events", map[string]any{
+		s.sendLog(log.Error(err, "failed to get events", map[string]any{
 			"op": "getEvents",
 		}))
 
@@ -108,7 +116,7 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.Event{}, models.ErrNotFound
 		}
-		s.sendLog(ctx, log.Error(err, "failed to get event", map[string]any{
+		s.sendLog(log.Error(err, "failed to get event", map[string]any{
 			"op": "getEvent",
 		}))
 
@@ -125,7 +133,7 @@ func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateE
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.ErrNotFound
 		}
-		s.sendLog(ctx, log.Error(err, "failed to get event", map[string]any{
+		s.sendLog(log.Error(err, "failed to get event", map[string]any{
 			"op": "getEvent",
 		}))
 
@@ -164,7 +172,7 @@ func (s *Service) DeleteEvent(ctx context.Context, id string) error {
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.ErrNotFound
 		}
-		s.sendLog(ctx, log.Error(err, "failed to delete event", map[string]any{
+		s.sendLog(log.Error(err, "failed to delete event", map[string]any{
 			"op": "deleteEvent",
 		}))
 

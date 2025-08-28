@@ -50,6 +50,13 @@ type StorageConfig struct {
 	SSLMode  string `yaml:"sslmode" env-default:"disable"`
 }
 
+// ArchiverConfig is the configuration for the archiver service
+type ArchiverConfig struct {
+	Interval  time.Duration `yaml:"interval" env-required:"true"`
+	OlderThan time.Duration `yaml:"older_than" env-required:"true"`
+	BatchSize int           `yaml:"batch_size" env-required:"true"`
+}
+
 // DSN returns the Data Source Name for the PostgreSQL database
 func (sc *StorageConfig) DSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
