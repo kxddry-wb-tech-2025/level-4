@@ -14,6 +14,7 @@ import (
 	"calendar/internal/storage/txmanager"
 	"context"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -65,5 +66,11 @@ func main() {
 	logger.Listen(fanin.FanIn(mainCtx, logs, elogs, nlogs, wlogs))
 
 	if err := srv.Start(); err != nil {
+		println(err)
 	}
+
+	cancel()
+	txmgr.Close()
+	// allow for everything to finish (graceful shutdown)
+	time.Sleep(10 * time.Second)
 }
