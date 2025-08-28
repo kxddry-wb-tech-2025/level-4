@@ -11,6 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Server is the HTTP server for the application
@@ -86,6 +87,8 @@ func (s *Server) setupRoutes() {
 	s.e.GET("/events/:id", s.getEvent)
 	s.e.PUT("/events/:id", s.updateEvent)
 	s.e.DELETE("/events/:id", s.deleteEvent)
+
+	s.e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 }
 

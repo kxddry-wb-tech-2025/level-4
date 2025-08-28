@@ -12,7 +12,19 @@ paths:
       responses:
         '200':
           description: Server is healthy
-  
+
+  /metrics:
+    get:
+      summary: Get server metrics
+      responses:
+        '200':
+          description: Server metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Server metrics
+
   /events:
     post:
       summary: Create a new event
