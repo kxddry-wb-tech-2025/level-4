@@ -1,0 +1,12 @@
+env: dev
+
+server:
+  port: 8080
+  timeout: 30s
+  idle_timeout: 60s
+
+smtp:
+  host: smtp.gmail.com
+  port: 587
+  username: your-email@gmail.com
+  # SMTP_PASSWORD will be loaded from environment variable
