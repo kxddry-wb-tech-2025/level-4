@@ -17,6 +17,10 @@ func (f *fakeTx) CreateEvent(ctx context.Context, req models.CreateEventRequest)
 	f.events[id] = models.Event{ID: id, Title: req.Title, Description: req.Description, Start: req.Start, End: req.End, Notify: req.Notify, Email: req.Email}
 	return id, nil
 }
+func (f *fakeTx) CreateEventWithID(ctx context.Context, id string, req models.CreateEventRequest) error {
+	f.events[id] = models.Event{ID: id, Title: req.Title, Description: req.Description, Start: req.Start, End: req.End, Notify: req.Notify, Email: req.Email}
+	return nil
+}
 func (f *fakeTx) GetAllEvents(ctx context.Context) ([]models.Event, error) {
 	out := make([]models.Event, 0, len(f.events))
 	for _, e := range f.events {

@@ -73,6 +73,25 @@ func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest
 	return id, err
 }
 
+// CreateWithID creates a new event with an id.
+func (r *Repository) CreateWithID(ctx context.Context, id string, event models.CreateEventRequest) error {
+	query := `
+	INSERT INTO events (id, title, description, start, end, notify, email)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+	var err error
+	if tx, ok := storage.GetTx(ctx); ok {
+		_, err = tx.Exec(ctx, query, id, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email)
+	} else {
+		r.sendLog(log.Warn("no tx found, using pool", map[string]any{
+			"op":         "create_with_id",
+			"repository": "events",
+		}))
+		_, err = r.pool.Exec(ctx, query, id, event.Title, event.Description, event.Start, event.End, event.Notify, event.Email)
+	}
+	return err
+}
+
 // GetAll gets all events
 func (r *Repository) GetAll(ctx context.Context) ([]models.Event, error) {
 	query := `

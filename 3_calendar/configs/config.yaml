@@ -25,3 +25,7 @@ storage:
   # STORAGE_PASSWORD will be loaded from environment variable
   database: calendar
   sslmode: disable
+
+worker:
+  interval: 30s
+  limit: 100

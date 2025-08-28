@@ -9,6 +9,10 @@ func (t *tx) CreateEvent(ctx context.Context, event models.CreateEventRequest) (
 	return t.repos.Events.Create(ctx, event)
 }
 
+func (t *tx) CreateEventWithID(ctx context.Context, id string, event models.CreateEventRequest) error {
+	return t.repos.Events.CreateWithID(ctx, id, event)
+}
+
 func (t *tx) GetAllEvents(ctx context.Context) ([]models.Event, error) {
 	return t.repos.Events.GetAll(ctx)
 }

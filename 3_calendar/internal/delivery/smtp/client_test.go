@@ -9,7 +9,9 @@ import (
 
 func TestEmailClient_NoRecipients(t *testing.T) {
 	c := NewEmailClient(&config.EmailConfig{Host: "localhost", Port: 1025})
-	if err := c.SendEmail(context.Background(), &delivery.EmailMessage{From: "a"}); err == nil {
+	if err := c.SendEmails(context.Background(), []*delivery.EmailMessage{
+		{From: "a", To: []string{"b"}},
+	}); err == nil {
 		t.Fatalf("expected error when no recipients")
 	}
 }

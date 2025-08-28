@@ -17,6 +17,11 @@ func (e *eventsTx) CreateEvent(ctx context.Context, event models.CreateEventRequ
 	return e.t.CreateEvent(ctx, event)
 }
 
+// CreateEventWithID creates an event with an id.
+func (e *eventsTx) CreateEventWithID(ctx context.Context, id string, event models.CreateEventRequest) error {
+	return e.t.CreateEventWithID(ctx, id, event)
+}
+
 // GetAllEvents gets all events.
 func (e *eventsTx) GetAllEvents(ctx context.Context) ([]models.Event, error) {
 	return e.t.GetAllEvents(ctx)

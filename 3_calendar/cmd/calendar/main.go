@@ -45,7 +45,7 @@ func main() {
 		panic(err)
 	}
 
-	w := workerSvc.NewWorker(redis, txmgr.AsWorkerTxManager(), sender)
+	w := workerSvc.NewWorker(redis, txmgr.AsWorkerTxManager(), sender, cfg.Worker)
 	wlogs := w.Logs()
 
 	go w.Handle(mainCtx)

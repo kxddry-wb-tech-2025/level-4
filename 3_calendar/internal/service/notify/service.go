@@ -54,13 +54,6 @@ func (s *Service) Process(jobs <-chan any) {
 						"op": "createNotification",
 					}))
 				}
-			case models.DeleteNotificationsRequest:
-				err := s.deleteNotifications(j.EventID)
-				if err != nil {
-					s.sendLog(log.Error(err, "failed to delete notifications", echo.Map{
-						"op": "deleteNotifications",
-					}))
-				}
 			default:
 				s.sendLog(log.Error(fmt.Errorf("unknown job type: %T", j), "unknown job type", echo.Map{
 					"op": "process",
@@ -103,9 +96,4 @@ func (s *Service) createNotification(notification models.CreateNotificationReque
 	}
 
 	return nil
-}
-
-// deleteNotifications deletes all notifications for an event
-func (s *Service) deleteNotifications(eventID string) error {
-	return s.worker.DeleteAllNotificationsByEventID(s.mainCtx, eventID)
 }

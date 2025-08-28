@@ -14,6 +14,7 @@ type Config struct {
 	SMTP    *EmailConfig   `yaml:"smtp"`
 	Storage *StorageConfig `yaml:"storage"`
 	Redis   *RedisConfig   `yaml:"redis"`
+	Worker  *WorkerConfig  `yaml:"worker"`
 }
 
 // RedisConfig is the configuration for the Redis database
@@ -55,6 +56,12 @@ type ArchiverConfig struct {
 	Interval  time.Duration `yaml:"interval" env-required:"true"`
 	OlderThan time.Duration `yaml:"older_than" env-required:"true"`
 	BatchSize int           `yaml:"batch_size" env-required:"true"`
+}
+
+// WorkerConfig is the configuration for the worker service
+type WorkerConfig struct {
+	Interval time.Duration `yaml:"interval" env-default:"30s"`
+	Limit    int64         `yaml:"limit" env-default:"100"`
 }
 
 // DSN returns the Data Source Name for the PostgreSQL database

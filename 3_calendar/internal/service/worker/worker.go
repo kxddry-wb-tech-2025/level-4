@@ -1,10 +1,13 @@
 package worker
 
 import (
+	"calendar/internal/config"
 	"calendar/internal/models"
 	"calendar/internal/models/log"
 	"calendar/internal/service"
+	"calendar/internal/storage"
 	"context"
+	"errors"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -38,15 +41,17 @@ type TxManager interface {
 
 // NotificationSender is the interface for the notification sender
 type NotificationSender interface {
-	Send(ctx context.Context, notification models.Notification) error
+	Send(ctx context.Context, notifications []models.Notification) error
 }
 
 // Worker is the struct for the worker
 type Worker struct {
-	st     Storage
-	txmgr  TxManager
-	sender NotificationSender
-	logs   chan<- log.Entry
+	st       Storage
+	txmgr    TxManager
+	sender   NotificationSender
+	logs     chan<- log.Entry
+	interval time.Duration
+	limit    int64
 }
 
 // Logs returns the channel for the logs
@@ -57,8 +62,8 @@ func (w *Worker) Logs() <-chan log.Entry {
 }
 
 // NewWorker creates a new worker
-func NewWorker(st Storage, txmgr TxManager, sender NotificationSender) *Worker {
-	return &Worker{st: st, txmgr: txmgr, sender: sender}
+func NewWorker(st Storage, txmgr TxManager, sender NotificationSender, cfg *config.WorkerConfig) *Worker {
+	return &Worker{st: st, txmgr: txmgr, sender: sender, interval: cfg.Interval, limit: cfg.Limit}
 }
 
 // sendLog sends a log entry
@@ -101,24 +106,6 @@ func (w *Worker) AddNotification(ctx context.Context, n models.CreateNotificatio
 	})
 }
 
-// DeleteAllNotificationsByEventID deletes all scheduled notifications for an event
-func (w *Worker) DeleteAllNotificationsByEventID(ctx context.Context, eventID string) error {
-	return w.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
-		ids, err := tx.GetNotificationIDsByEventID(ctx, eventID)
-		if err != nil {
-			return err
-		}
-		for _, id := range ids {
-			// remove from queue best-effort
-			_ = w.st.Remove(ctx, id)
-			if err := tx.DeleteNotificationByID(ctx, id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 // DeleteNotificationByID deletes a specific notification by id and removes it from the queue
 func (w *Worker) DeleteNotificationByID(ctx context.Context, id string) error {
 	// best-effort removal from queue
@@ -128,28 +115,16 @@ func (w *Worker) DeleteNotificationByID(ctx context.Context, id string) error {
 	})
 }
 
-// DeleteNotification cancels a scheduled notification by removing it from the queue.
-func (w *Worker) DeleteNotification(ctx context.Context, id string) error {
-	if err := w.st.Remove(ctx, id); err != nil {
-		w.sendLog(ctx, log.Error(err, "failed to remove scheduled notification", echo.Map{
-			"op":      "DeleteNotification",
-			"notifID": id,
-		}))
-		return err
-	}
-	return nil
-}
-
 // Handle handles the worker
 func (w *Worker) Handle(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			ids, err := w.st.PopDue(ctx, "notify:due", 100)
+			ids, err := w.st.PopDue(ctx, "notify:due", w.limit)
 			if err != nil {
 				w.sendLog(ctx, log.Error(err, "failed to pop due", echo.Map{
 					"op": "Handle",
@@ -169,9 +144,14 @@ func (w *Worker) Handle(ctx context.Context) {
 
 func (w *Worker) sendNotifications(ctx context.Context, ids []string) error {
 	return w.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		notifications := []models.Notification{}
 		for _, id := range ids {
 			notification, err := tx.GetNotificationByID(ctx, id)
 			if err != nil {
+				// ON DELETE CASCADE deletes the notification from the database
+				if errors.Is(err, storage.ErrNotFound) {
+					continue
+				}
 				w.sendLog(ctx, log.Error(err, "failed to get notification", echo.Map{
 					"op":      "Handle",
 					"notifID": id,
@@ -179,23 +159,24 @@ func (w *Worker) sendNotifications(ctx context.Context, ids []string) error {
 				continue
 			}
 
-			if err := w.sender.Send(ctx, notification); err != nil {
-				w.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
-					"op":      "Handle",
-					"notifID": id,
-				}))
-				// simple retry after 1 minute
-				_ = w.st.Enqueue(ctx, id, time.Now().Add(time.Minute))
-				continue
-			}
+			notifications = append(notifications, notification)
+		}
 
-			if err := tx.DeleteNotificationByID(ctx, id); err != nil {
+		if err := w.sender.Send(ctx, notifications); err != nil {
+			w.sendLog(ctx, log.Error(err, "failed to send notifications", echo.Map{
+				"op": "Handle",
+			}))
+		}
+
+		for _, notification := range notifications {
+			if err := tx.DeleteNotificationByID(ctx, notification.ID); err != nil {
 				w.sendLog(ctx, log.Error(err, "failed to delete notification after send", echo.Map{
 					"op":      "Handle",
-					"notifID": id,
+					"notifID": notification.ID,
 				}))
 			}
 		}
+
 		return nil
 	})
 }

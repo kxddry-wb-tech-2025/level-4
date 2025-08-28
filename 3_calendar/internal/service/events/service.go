@@ -14,6 +14,7 @@ import (
 // EventRepository is the interface for the event repository
 type EventRepository interface {
 	service.EventCreator
+	service.EventCreatorID
 	service.EventGetter
 	service.EventUpdater
 	service.EventDeleter
@@ -153,18 +154,41 @@ func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateE
 	var old models.Event
 	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
 		var err error
+		var deleted bool
 		old, err = tx.GetEvent(ctx, id)
 		if err != nil {
 			return err
 		}
 
 		if old.Notify {
+			// if email was changed, delete the old notifications
+			// if start time was changed, delete the old notifications
+			// if notify was turned off, delete the old notifications
 			if (new.Email != "" && new.Email != old.Email) ||
 				(new.Start != old.Start) || !new.Notify {
-				s.sendJob(ctx, models.DeleteNotificationsRequest{
-					EventID: id,
-				})
+				// delete the old event, DELETE ON CASCADE deletes the notifications anyway
+				err = tx.DeleteEvent(ctx, id)
+				if err != nil {
+					return err
+				}
+				deleted = true
 			}
+		}
+
+		if deleted {
+			err = tx.CreateEventWithID(ctx, id, models.CreateEventRequest{
+				Title:       new.Title,
+				Start:       new.Start,
+				End:         new.End,
+				Notify:      new.Notify,
+				Email:       new.Email,
+				Description: new.Description,
+			})
+		} else {
+			err = tx.UpdateEvent(ctx, id, new)
+		}
+		if err != nil {
+			return err
 		}
 
 		if new.Notify {
@@ -205,10 +229,6 @@ func (s *Service) DeleteEvent(ctx context.Context, id string) error {
 
 		return err
 	}
-
-	s.sendJob(ctx, models.DeleteNotificationsRequest{
-		EventID: id,
-	})
 
 	return nil
 }

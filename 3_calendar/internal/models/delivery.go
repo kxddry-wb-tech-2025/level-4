@@ -11,11 +11,6 @@ type CreateNotificationRequest struct {
 	Recipient string
 }
 
-// DeleteNotificationsRequest is the request to delete notifications
-type DeleteNotificationsRequest struct {
-	EventID string
-}
-
 // Notification is the notification model
 type Notification struct {
 	EventID   string

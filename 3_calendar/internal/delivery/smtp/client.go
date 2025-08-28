@@ -4,7 +4,6 @@ import (
 	"calendar/internal/config"
 	"calendar/internal/delivery"
 	"context"
-	"fmt"
 
 	"gopkg.in/gomail.v2"
 )
@@ -23,39 +22,36 @@ func NewEmailClient(cfg *config.EmailConfig) *EmailClient {
 	}
 }
 
-// SendEmail sends an email using the configured SMTP server
-func (c *EmailClient) SendEmail(ctx context.Context, msg *delivery.EmailMessage) error {
-	if len(msg.To) == 0 {
-		return fmt.Errorf("no recipients specified")
+// SendEmails sends multiple emails reusing the same connection for performance
+func (c *EmailClient) SendEmails(ctx context.Context, msgs []*delivery.EmailMessage) error {
+	s, err := c.dialer.Dial()
+	if err != nil {
+		return err
 	}
+	defer s.Close()
 
-	m := gomail.NewMessage()
-	m.SetHeader("From", msg.From)
-	m.SetHeader("To", msg.To...)
-	m.SetHeader("Subject", msg.Subject)
+	for _, msg := range msgs {
+		m := gomail.NewMessage()
+		m.SetHeader("From", msg.From)
+		m.SetHeader("To", msg.To...)
+		m.SetHeader("Subject", msg.Subject)
 
-	if msg.IsHTML {
-		m.SetBody("text/html", msg.Body)
-	} else {
-		m.SetBody("text/plain", msg.Body)
-	}
-
-	for _, filePath := range msg.FilePaths {
-		m.Attach(filePath)
-	}
-
-	out := make(chan error)
-	go func(ctx context.Context) {
-		defer close(out)
-
-		select {
-		case <-ctx.Done():
-			out <- ctx.Err()
-		case out <- c.dialer.DialAndSend(m):
+		if msg.IsHTML {
+			m.SetBody("text/html", msg.Body)
+		} else {
+			m.SetBody("text/plain", msg.Body)
 		}
-	}(ctx)
 
-	return <-out
+		for _, filePath := range msg.FilePaths {
+			m.Attach(filePath)
+		}
+
+		if err := gomail.Send(s, m); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // TestConnection tests the SMTP connection without sending an email

@@ -13,7 +13,6 @@ type NotificationCreator interface {
 // NotificationDeleter is the interface for deleting a notification.
 type NotificationDeleter interface {
 	DeleteNotificationByID(ctx context.Context, id string) error
-	DeleteAllNotificationsByEventID(ctx context.Context, eventID string) error
 }
 
 // NotificationGetter is the interface for getting a notification.
@@ -30,6 +29,11 @@ type NotificationAdder interface {
 // EventCreator is the interface for creating an event.
 type EventCreator interface {
 	CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error)
+}
+
+// EventCreatorID is the interface for creating an event with an ID.
+type EventCreatorID interface {
+	CreateEventWithID(ctx context.Context, id string, event models.CreateEventRequest) error
 }
 
 // EventGetter is the interface for getting an event.

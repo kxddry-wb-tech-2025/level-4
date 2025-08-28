@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"calendar/internal/config"
 	"calendar/internal/models"
 	"context"
 	"errors"
@@ -84,8 +85,8 @@ type fakeSender struct {
 	err  error
 }
 
-func (s *fakeSender) Send(ctx context.Context, n models.Notification) error {
-	s.sent = append(s.sent, n)
+func (s *fakeSender) Send(ctx context.Context, ns []models.Notification) error {
+	s.sent = append(s.sent, ns...)
 	return s.err
 }
 
@@ -93,7 +94,7 @@ func TestAddNotification_Enqueue(t *testing.T) {
 	ctx := context.Background()
 	st := &fakeStorage{}
 	m := fakeTxMgr{tx: &fakeTx{notifs: map[string]models.Notification{}}}
-	w := NewWorker(st, m, &fakeSender{})
+	w := NewWorker(st, m, &fakeSender{}, &config.WorkerConfig{Interval: 1 * time.Second, Limit: 100})
 
 	when := time.Now().Add(time.Minute)
 	if err := w.AddNotification(ctx, models.CreateNotificationRequest{EventID: "e1", Message: "m", When: when, Channel: "email", Recipient: "a@b.c"}); err != nil {
@@ -111,7 +112,7 @@ func TestHandle_SendsAndDeletes(t *testing.T) {
 	tx := &fakeTx{notifs: map[string]models.Notification{"n1": {ID: "n1", EventID: "e1", Message: "m", When: time.Now(), Channel: "email", Recipient: "a@b.c"}}}
 	m := fakeTxMgr{tx: tx}
 	s := &fakeSender{}
-	w := NewWorker(st, m, s)
+	w := NewWorker(st, m, s, &config.WorkerConfig{Interval: 1 * time.Second, Limit: 100})
 	go w.Handle(ctx)
 	time.Sleep(1200 * time.Millisecond)
 	if len(s.sent) == 0 {
