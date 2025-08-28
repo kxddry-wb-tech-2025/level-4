@@ -1,6 +1,8 @@
 package txmanager
 
 import (
+	"calendar/internal/lib/fanin"
+	"calendar/internal/models/log"
 	"calendar/internal/storage/repos/archives"
 	"calendar/internal/storage/repos/events"
 	"calendar/internal/storage/repos/notifications"
@@ -35,6 +37,11 @@ func New(ctx context.Context, dsn string) (*TxManager, error) {
 			Notifications: notifications.NewRepository(ctx, pool),
 		},
 	}, nil
+}
+
+func (m *TxManager) Logs(ctx context.Context) <-chan log.Entry {
+	logs := fanin.FanIn(ctx, m.repos.Events.Logs(), m.repos.Archives.Logs(), m.repos.Notifications.Logs())
+	return logs
 }
 
 func (m *TxManager) Close() {
