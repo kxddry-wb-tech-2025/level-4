@@ -1,5 +1,6 @@
 package delivery
 
+// EmailMessage is the message to be sent via email
 type EmailMessage struct {
 	From      string
 	To        []string

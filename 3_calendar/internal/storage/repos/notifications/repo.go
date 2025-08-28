@@ -15,6 +15,7 @@ type Repository struct {
 	pool *pgxpool.Pool
 }
 
+// NewRepository creates a new repository
 func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
 	pool, err := pgxpool.New(ctx, connStr)
 	if err != nil {
@@ -23,6 +24,7 @@ func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
 	return &Repository{pool: pool}, pool.Ping(ctx)
 }
 
+// Create creates a new notification
 func (r *Repository) Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error) {
 	query := `
 	INSERT INTO notifications (event_id, message, "when", channel, recipient)
@@ -35,6 +37,7 @@ func (r *Repository) Create(ctx context.Context, notification models.CreateNotif
 	return id, err
 }
 
+// GetIDsByEventID gets all notification ids by event id
 func (r *Repository) GetIDsByEventID(ctx context.Context, eventID string) ([]string, error) {
 	query := `
 	SELECT id
@@ -63,6 +66,7 @@ func (r *Repository) GetIDsByEventID(ctx context.Context, eventID string) ([]str
 	return ids, nil
 }
 
+// DeleteAllByEventID deletes all notifications by event id
 func (r *Repository) DeleteAllByEventID(ctx context.Context, eventID string) error {
 	query := `
 	DELETE FROM notifications
@@ -78,6 +82,7 @@ func (r *Repository) DeleteAllByEventID(ctx context.Context, eventID string) err
 	return err
 }
 
+// GetByID gets a notification by id
 func (r *Repository) GetByID(ctx context.Context, id string) (models.Notification, error) {
 	query := `
 	SELECT id, event_id, message, "when", channel, recipient
@@ -92,6 +97,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (models.Notificatio
 	return n, nil
 }
 
+// DeleteByID deletes a notification by id
 func (r *Repository) DeleteByID(ctx context.Context, id string) error {
 	query := `
 	DELETE FROM notifications

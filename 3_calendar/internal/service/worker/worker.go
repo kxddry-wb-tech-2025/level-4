@@ -9,12 +9,14 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Storage is the interface for the storage
 type Storage interface {
 	PopDue(ctx context.Context, key string, limit int64) ([]string, error)
 	Enqueue(ctx context.Context, id string, at time.Time) error
 	Remove(ctx context.Context, id string) error
 }
 
+// NotificationRepository is the interface for the notification repository
 type NotificationRepository interface {
 	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
 	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
@@ -23,10 +25,12 @@ type NotificationRepository interface {
 	DeleteByID(ctx context.Context, id string) error
 }
 
+// NotificationSender is the interface for the notification sender
 type NotificationSender interface {
 	Send(ctx context.Context, notification models.Notification) error
 }
 
+// Worker is the struct for the worker
 type Worker struct {
 	st     Storage
 	sender NotificationSender
@@ -34,10 +38,12 @@ type Worker struct {
 	logs   chan<- log.Entry
 }
 
+// NewWorker creates a new worker
 func NewWorker(st Storage, sender NotificationSender, repo NotificationRepository, logs chan<- log.Entry) *Worker {
 	return &Worker{st: st, sender: sender, repo: repo, logs: logs}
 }
 
+// sendLog sends a log entry
 func (w *Worker) sendLog(ctx context.Context, entry log.Entry) {
 	if w.logs == nil {
 		return
@@ -75,6 +81,7 @@ func (w *Worker) DeleteNotification(ctx context.Context, id string) error {
 	return nil
 }
 
+// Handle handles the worker
 func (w *Worker) Handle(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(time.Second)

@@ -2,6 +2,7 @@ package log
 
 import "time"
 
+// Error creates a new error log entry
 func Error(err error, msg string, meta map[string]any) Entry {
 	return Entry{
 		Level:   LevelError,
@@ -12,6 +13,7 @@ func Error(err error, msg string, meta map[string]any) Entry {
 	}
 }
 
+// Info creates a new info log entry
 func Info(msg string, meta map[string]any) Entry {
 	return Entry{
 		Level:   LevelInfo,
@@ -21,6 +23,7 @@ func Info(msg string, meta map[string]any) Entry {
 	}
 }
 
+// Warn creates a new warn log entry
 func Warn(msg string, meta map[string]any) Entry {
 	return Entry{
 		Level:   LevelWarn,
@@ -30,6 +33,7 @@ func Warn(msg string, meta map[string]any) Entry {
 	}
 }
 
+// Debug creates a new debug log entry
 func Debug(msg string, meta map[string]any) Entry {
 	return Entry{
 		Level:   LevelDebug,

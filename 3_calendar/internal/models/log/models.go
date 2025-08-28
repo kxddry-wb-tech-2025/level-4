@@ -2,8 +2,10 @@ package log
 
 import "time"
 
+// Level is the level of the log
 type Level int
 
+// Levels
 const (
 	LevelDebug Level = iota
 	LevelInfo
@@ -11,6 +13,7 @@ const (
 	LevelError
 )
 
+// Entry is the log entry
 type Entry struct {
 	Level   Level
 	Message string

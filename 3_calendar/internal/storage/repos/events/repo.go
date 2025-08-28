@@ -10,10 +10,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Repository is a repository for events
 type Repository struct {
 	pool *pgxpool.Pool
 }
 
+// NewRepository creates a new repository
 func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
 	pool, err := pgxpool.New(ctx, connStr)
 	if err != nil {
@@ -23,6 +25,7 @@ func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
 	return &Repository{pool: pool}, pool.Ping(ctx)
 }
 
+// Create creates a new event
 func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest) (string, error) {
 	query := `
 	INSERT INTO events (title, description, start, end, notify, email)
@@ -35,6 +38,7 @@ func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest
 	return id, err
 }
 
+// GetAll gets all events
 func (r *Repository) GetAll(ctx context.Context) ([]models.Event, error) {
 	query := `
 	SELECT id, title, description, start, end, notify, email
@@ -62,6 +66,7 @@ func (r *Repository) GetAll(ctx context.Context) ([]models.Event, error) {
 	return events, nil
 }
 
+// Get gets an event by id
 func (r *Repository) Get(ctx context.Context, id string) (models.Event, error) {
 	query := `
 	SELECT id, title, description, start, end, notify, email
@@ -77,6 +82,7 @@ func (r *Repository) Get(ctx context.Context, id string) (models.Event, error) {
 	return event, nil
 }
 
+// Update updates an event
 func (r *Repository) Update(ctx context.Context, id string, event models.UpdateEventRequest) error {
 	query := `
 	UPDATE events
@@ -93,6 +99,7 @@ func (r *Repository) Update(ctx context.Context, id string, event models.UpdateE
 	return nil
 }
 
+// Delete deletes an event
 func (r *Repository) Delete(ctx context.Context, id string) error {
 	query := `
 	DELETE FROM events

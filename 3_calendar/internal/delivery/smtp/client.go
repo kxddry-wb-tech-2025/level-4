@@ -9,6 +9,7 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
+// EmailClient is the SMTP email client
 type EmailClient struct {
 	dialer *gomail.Dialer
 }

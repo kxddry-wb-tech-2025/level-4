@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
+// Server is the HTTP server for the application
 type Server struct {
 	e       *echo.Echo
 	logs    chan<- log.Entry
@@ -21,6 +22,7 @@ type Server struct {
 	mainCtx context.Context
 }
 
+// Service is the interface for the application services
 type Service interface {
 	CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error)
 	GetEvents(ctx context.Context) ([]models.Event, error)
@@ -29,6 +31,7 @@ type Service interface {
 	DeleteEvent(ctx context.Context, id string) error
 }
 
+// NewServer creates a new HTTP server
 func NewServer(ctx context.Context, sCfg config.ServerConfig, service Service) *Server {
 	e := echo.New()
 	e.Validator = &Validator{validator: validator.New()}
@@ -48,26 +51,31 @@ func NewServer(ctx context.Context, sCfg config.ServerConfig, service Service) *
 	return s
 }
 
+// Logs returns the channel for the logs
 func (s *Server) Logs() <-chan log.Entry {
 	logs := make(chan log.Entry, 100)
 	s.logs = logs
 	return logs
 }
 
+// Validator is the validator for the application
 type Validator struct {
 	validator *validator.Validate
 }
 
+// Validate validates the input
 func (v *Validator) Validate(i interface{}) error {
 	return v.validator.Struct(i)
 }
 
+// setup sets up the server
 func (s *Server) setup() {
 	s.e.Use(middleware.Recover())
 
 	s.setupRoutes()
 }
 
+// setupRoutes sets up the routes
 func (s *Server) setupRoutes() {
 	s.e.GET("/health", func(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
@@ -81,6 +89,7 @@ func (s *Server) setupRoutes() {
 
 }
 
+// Start starts the server
 func (s *Server) Start() error {
 	return s.e.Start(fmt.Sprintf(":%d", s.port))
 }

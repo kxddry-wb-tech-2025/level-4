@@ -7,6 +7,7 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
+// Config is the main configuration for the application
 type Config struct {
 	Env     string        `yaml:"env" env-default:"dev"`
 	Server  ServerConfig  `yaml:"server"`
@@ -15,6 +16,7 @@ type Config struct {
 	Redis   RedisConfig   `yaml:"redis"`
 }
 
+// RedisConfig is the configuration for the Redis database
 type RedisConfig struct {
 	Host     string `yaml:"host" env-required:"true"`
 	Port     int    `yaml:"port" env-required:"true"`
@@ -23,6 +25,7 @@ type RedisConfig struct {
 	Database int    `yaml:"database" env-default:"0"`
 }
 
+// EmailConfig is the configuration for the email server
 type EmailConfig struct {
 	Host     string `yaml:"host" env-required:"true"`
 	Port     int    `yaml:"port" env-required:"true"`
@@ -30,12 +33,14 @@ type EmailConfig struct {
 	Password string `env:"SMTP_PASSWORD" env-required:"true"`
 }
 
+// ServerConfig is the configuration for the HTTP server
 type ServerConfig struct {
 	Port        int           `yaml:"port" env-required:"true"`
 	Timeout     time.Duration `yaml:"timeout" env-required:"true"`
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-required:"true"`
 }
 
+// StorageConfig is the configuration for the PostgreSQL database
 type StorageConfig struct {
 	Host     string `yaml:"host" env-required:"true"`
 	Port     int    `yaml:"port" env-required:"true"`
@@ -45,11 +50,13 @@ type StorageConfig struct {
 	SSLMode  string `yaml:"sslmode" env-default:"disable"`
 }
 
+// DSN returns the Data Source Name for the PostgreSQL database
 func (sc *StorageConfig) DSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		sc.Host, sc.Port, sc.Username, sc.Password, sc.Database, sc.SSLMode)
 }
 
+// MustLoad loads the configuration from a file and panics if the file does not exist or the configuration is invalid
 func MustLoad(path string) *Config {
 	var cfg Config
 

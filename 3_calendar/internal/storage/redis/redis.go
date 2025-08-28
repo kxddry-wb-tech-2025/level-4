@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Storage represents the Redis storage client
+// Storage is the Redis storage client
 type Storage struct {
 	client *redis.Client
 }
@@ -32,7 +32,7 @@ const (
 	keyDueZset = "notify:due"
 )
 
-// GetEarliest returns the earliest element from a sorted set with the given key
+// PopDue returns the due elements from a sorted set with the given key
 func (s *Storage) PopDue(ctx context.Context, key string, limit int64) ([]string, error) {
 	vals, err := s.client.ZRangeByScore(ctx, key, &redis.ZRangeBy{
 		Min:    "-inf",
@@ -63,6 +63,7 @@ func anySlice[T any](in []T) []any {
 	return out
 }
 
+// Enqueue adds a notification id to the delayed queue
 func (s *Storage) Enqueue(ctx context.Context, id string, at time.Time) error {
 	return s.client.ZAdd(ctx, keyDueZset, redis.Z{
 		Score:  float64(at.Unix()),

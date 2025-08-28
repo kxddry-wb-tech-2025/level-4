@@ -8,15 +8,18 @@ import (
 	"fmt"
 )
 
+// EmailClient is the interface for the email client
 type EmailClient interface {
 	SendEmail(ctx context.Context, msg *delivery.EmailMessage) error
 }
 
+// Sender is the struct for the email sender
 type Sender struct {
 	emailClient EmailClient
 	config      *config.EmailConfig
 }
 
+// NewSender creates a new email sender
 func NewSender(emailClient EmailClient, config *config.EmailConfig) *Sender {
 	return &Sender{
 		emailClient: emailClient,
@@ -24,6 +27,7 @@ func NewSender(emailClient EmailClient, config *config.EmailConfig) *Sender {
 	}
 }
 
+// Send sends an email notification
 func (s *Sender) Send(ctx context.Context, notification models.Notification) error {
 	switch notification.Channel {
 	case "email":

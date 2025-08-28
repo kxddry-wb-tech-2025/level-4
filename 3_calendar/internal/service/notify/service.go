@@ -9,27 +9,32 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Worker is the interface for the worker
 type Worker interface {
 	AddNotification(ctx context.Context, notification models.Notification) error
 	DeleteNotification(ctx context.Context, id string) error
 }
 
+// NotificationRepository is the interface for the notification repository
 type NotificationRepository interface {
 	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
 	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
 	DeleteAllByEventID(ctx context.Context, eventID string) error
 }
 
+// Service is the struct for the notification service
 type Service struct {
 	repo   NotificationRepository
 	worker Worker
 	logs   chan<- log.Entry
 }
 
+// NewService creates a new notification service
 func NewService(repo NotificationRepository, worker Worker) *Service {
 	return &Service{repo: repo, worker: worker}
 }
 
+// Process processes the notifications
 func (s *Service) Process(ctx context.Context, jobs <-chan any) {
 	for {
 		select {
@@ -64,6 +69,7 @@ func (s *Service) Process(ctx context.Context, jobs <-chan any) {
 	}
 }
 
+// sendLog sends a log entry
 func (s *Service) sendLog(ctx context.Context, entry log.Entry) {
 	if s.logs == nil {
 		return
@@ -77,6 +83,7 @@ func (s *Service) sendLog(ctx context.Context, entry log.Entry) {
 	}(ctx)
 }
 
+// createNotification creates a notification
 func (s *Service) createNotification(ctx context.Context, notification models.CreateNotificationRequest) error {
 	id, err := s.repo.Create(ctx, notification)
 	if err != nil {
@@ -107,6 +114,7 @@ func (s *Service) createNotification(ctx context.Context, notification models.Cr
 	return nil
 }
 
+// deleteNotifications deletes all notifications for an event
 func (s *Service) deleteNotifications(ctx context.Context, eventID string) error {
 	ids, err := s.repo.GetIDsByEventID(ctx, eventID)
 	if err != nil {
