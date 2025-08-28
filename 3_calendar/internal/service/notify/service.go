@@ -3,6 +3,7 @@ package notify
 import (
 	"calendar/internal/models"
 	"calendar/internal/models/log"
+	"calendar/internal/service"
 	"context"
 	"fmt"
 
@@ -11,20 +12,12 @@ import (
 
 // Worker is the interface for the worker
 type Worker interface {
-	AddNotification(ctx context.Context, notification models.Notification) error
-	DeleteNotification(ctx context.Context, id string) error
-}
-
-// NotificationRepository is the interface for the notification repository
-type NotificationRepository interface {
-	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
-	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
-	DeleteAllByEventID(ctx context.Context, eventID string) error
+	service.NotificationAdder
+	service.NotificationDeleter
 }
 
 // Service is the struct for the notification service
 type Service struct {
-	repo    NotificationRepository
 	worker  Worker
 	logs    chan<- log.Entry
 	mainCtx context.Context
@@ -38,8 +31,8 @@ func (s *Service) Logs() <-chan log.Entry {
 }
 
 // NewService creates a new notification service
-func NewService(ctx context.Context, repo NotificationRepository, worker Worker) *Service {
-	return &Service{repo: repo, worker: worker, mainCtx: ctx}
+func NewService(ctx context.Context, worker Worker) *Service {
+	return &Service{worker: worker, mainCtx: ctx}
 }
 
 // Process processes the notifications
@@ -100,24 +93,7 @@ func (s *Service) sendLog(entry log.Entry) {
 
 // createNotification creates a notification
 func (s *Service) createNotification(notification models.CreateNotificationRequest) error {
-	id, err := s.repo.Create(s.mainCtx, notification)
-	if err != nil {
-		s.sendLog(log.Error(err, "failed to create notification", echo.Map{
-			"op": "createNotification",
-		}))
-
-		return err
-	}
-
-	err = s.worker.AddNotification(s.mainCtx, models.Notification{
-		EventID:   notification.EventID,
-		ID:        id,
-		Message:   notification.Message,
-		When:      notification.When,
-		Channel:   notification.Channel,
-		Recipient: notification.Recipient,
-	})
-
+	err := s.worker.AddNotification(s.mainCtx, notification)
 	if err != nil {
 		s.sendLog(log.Error(err, "failed to send notification", echo.Map{
 			"op": "createNotification",
@@ -131,30 +107,5 @@ func (s *Service) createNotification(notification models.CreateNotificationReque
 
 // deleteNotifications deletes all notifications for an event
 func (s *Service) deleteNotifications(eventID string) error {
-	ids, err := s.repo.GetIDsByEventID(s.mainCtx, eventID)
-	if err != nil {
-		s.sendLog(log.Error(err, "failed to get notification IDs", echo.Map{
-			"op": "deleteNotifications",
-		}))
-
-		return err
-	}
-
-	for _, id := range ids {
-		err := s.worker.DeleteNotification(s.mainCtx, id)
-		if err != nil {
-			s.sendLog(log.Error(err, "failed to cancel notification", echo.Map{
-				"op": "deleteNotifications",
-			}))
-		}
-	}
-
-	err = s.repo.DeleteAllByEventID(s.mainCtx, eventID)
-	if err != nil {
-		s.sendLog(log.Error(err, "failed to delete notifications", echo.Map{
-			"op": "deleteNotifications",
-		}))
-	}
-
-	return nil
+	return s.worker.DeleteAllNotificationsByEventID(s.mainCtx, eventID)
 }

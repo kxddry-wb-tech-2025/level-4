@@ -3,6 +3,7 @@ package events
 import (
 	"calendar/internal/models"
 	"calendar/internal/models/log"
+	"calendar/internal/service"
 	"calendar/internal/storage"
 	"context"
 	"errors"
@@ -12,16 +13,25 @@ import (
 
 // EventRepository is the interface for the event repository
 type EventRepository interface {
-	Create(ctx context.Context, event models.CreateEventRequest) (string, error)
-	GetAll(ctx context.Context) ([]models.Event, error)
-	Get(ctx context.Context, id string) (models.Event, error)
-	Update(ctx context.Context, id string, event models.UpdateEventRequest) error
-	Delete(ctx context.Context, id string) error
+	service.EventCreator
+	service.EventGetter
+	service.EventUpdater
+	service.EventDeleter
+}
+
+type Tx interface {
+	EventRepository
+	Commit() error
+	Rollback() error
+}
+
+type TxManager interface {
+	Do(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error
 }
 
 // Service is the struct for the event service
 type Service struct {
-	repo    EventRepository
+	txmgr   TxManager
 	logs    chan<- log.Entry
 	jobs    chan<- any
 	mainCtx context.Context
@@ -35,8 +45,8 @@ func (s *Service) Logs() <-chan log.Entry {
 }
 
 // NewService creates a new event service
-func NewService(ctx context.Context, repo EventRepository, jobs chan<- any) *Service {
-	return &Service{repo: repo, jobs: jobs, mainCtx: ctx}
+func NewService(ctx context.Context, txmgr TxManager, jobs chan<- any) *Service {
+	return &Service{txmgr: txmgr, jobs: jobs, mainCtx: ctx}
 }
 
 // sendLog sends a log entry
@@ -65,14 +75,19 @@ func (s *Service) sendJob(ctx context.Context, job any) {
 		select {
 		case s.jobs <- job:
 		case <-ctx.Done():
+
 		}
 	}(ctx)
 }
 
 // CreateEvent creates a new event
 func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error) {
-	id, err := s.repo.Create(ctx, event)
-	if err != nil {
+	var id string
+	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		var err error
+		id, err = tx.CreateEvent(ctx, event)
+		return err
+	}); err != nil {
 		s.sendLog(log.Error(err, "failed to create event", map[string]any{
 			"op": "createEvent",
 		}))
@@ -84,7 +99,7 @@ func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventReque
 			EventID:   id,
 			Message:   fmt.Sprintf(models.MessageTemplate, event.Title, event.Start.Format(time.RFC1123)),
 			When:      models.NotifyTime(event.Start),
-			Channel:   "email",
+			Channel:   "email", // we can make this configurable, but we have to change the user interface first. I'm too lazy to implement it now.
 			Recipient: event.Email,
 		})
 	}
@@ -94,15 +109,15 @@ func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventReque
 
 // GetEvents gets all events
 func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
-	events, err := s.repo.GetAll(ctx)
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			return []models.Event{}, nil
-		}
+	var events []models.Event
+	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		var err error
+		events, err = tx.GetAllEvents(ctx)
+		return err
+	}); err != nil {
 		s.sendLog(log.Error(err, "failed to get events", map[string]any{
 			"op": "getEvents",
 		}))
-
 		return nil, err
 	}
 
@@ -111,14 +126,19 @@ func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
 
 // GetEvent gets an event by id
 func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error) {
-	event, err := s.repo.Get(ctx, id)
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			return models.Event{}, models.ErrNotFound
-		}
+	var event models.Event
+	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		var err error
+		event, err = tx.GetEvent(ctx, id)
+		return err
+	}); err != nil {
 		s.sendLog(log.Error(err, "failed to get event", map[string]any{
 			"op": "getEvent",
 		}))
+
+		if errors.Is(err, storage.ErrNotFound) {
+			return models.Event{}, models.ErrNotFound
+		}
 
 		return models.Event{}, err
 	}
@@ -128,46 +148,51 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 
 // UpdateEvent updates an event
 func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateEventRequest) error {
-	old, err := s.repo.Get(ctx, id)
-	if err != nil {
+	var old models.Event
+	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		var err error
+		old, err = tx.GetEvent(ctx, id)
+		if err != nil {
+			return err
+		}
+
+		if old.Notify {
+			if (new.Email != "" && new.Email != old.Email) ||
+				(new.Start != old.Start) || !new.Notify {
+				s.sendJob(ctx, models.DeleteNotificationsRequest{
+					EventID: id,
+				})
+			}
+		}
+
+		if new.Notify {
+			s.sendJob(ctx, models.CreateNotificationRequest{
+				EventID:   id,
+				Message:   fmt.Sprintf(models.MessageTemplate, new.Title, new.Start.Format(time.RFC1123)),
+				When:      models.NotifyTime(new.Start),
+				Channel:   "email",
+				Recipient: new.Email,
+			})
+		}
+
+		return tx.UpdateEvent(ctx, id, new)
+	}); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.ErrNotFound
 		}
 		s.sendLog(log.Error(err, "failed to get event", map[string]any{
 			"op": "getEvent",
 		}))
-
 		return err
 	}
-	if old.Notify {
-		if (new.Email != "" && new.Email != old.Email) ||
-			(new.Start != old.Start) {
-			s.sendJob(ctx, models.DeleteNotificationsRequest{
-				EventID: id,
-			})
-		}
-	}
-
-	if new.Notify {
-		s.sendJob(ctx, models.CreateNotificationRequest{
-			EventID:   id,
-			Message:   fmt.Sprintf(models.MessageTemplate, new.Title, new.Start.Format(time.RFC1123)),
-			When:      models.NotifyTime(new.Start),
-			Channel:   "email",
-			Recipient: new.Email,
-		})
-	}
-
-	return s.repo.Update(ctx, id, new)
+	return nil
 }
 
 // DeleteEvent deletes an event
 func (s *Service) DeleteEvent(ctx context.Context, id string) error {
-	s.sendJob(ctx, models.DeleteNotificationsRequest{
-		EventID: id,
+	err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		return tx.DeleteEvent(ctx, id)
 	})
-
-	err := s.repo.Delete(ctx, id)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return models.ErrNotFound
@@ -178,6 +203,10 @@ func (s *Service) DeleteEvent(ctx context.Context, id string) error {
 
 		return err
 	}
+
+	s.sendJob(ctx, models.DeleteNotificationsRequest{
+		EventID: id,
+	})
 
 	return nil
 }

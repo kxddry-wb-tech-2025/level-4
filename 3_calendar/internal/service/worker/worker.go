@@ -3,6 +3,7 @@ package worker
 import (
 	"calendar/internal/models"
 	"calendar/internal/models/log"
+	"calendar/internal/service"
 	"context"
 	"time"
 
@@ -18,11 +19,19 @@ type Storage interface {
 
 // NotificationRepository is the interface for the notification repository
 type NotificationRepository interface {
-	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
-	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
-	DeleteAllByEventID(ctx context.Context, eventID string) error
-	GetByID(ctx context.Context, id string) (models.Notification, error)
-	DeleteByID(ctx context.Context, id string) error
+	service.NotificationCreator
+	service.NotificationDeleter
+	service.NotificationGetter
+}
+
+type Tx interface {
+	NotificationRepository
+	Commit() error
+	Rollback() error
+}
+
+type TxManager interface {
+	Do(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error
 }
 
 // NotificationSender is the interface for the notification sender
@@ -33,8 +42,8 @@ type NotificationSender interface {
 // Worker is the struct for the worker
 type Worker struct {
 	st     Storage
+	txmgr  TxManager
 	sender NotificationSender
-	repo   NotificationRepository
 	logs   chan<- log.Entry
 }
 
@@ -46,8 +55,8 @@ func (w *Worker) Logs() <-chan log.Entry {
 }
 
 // NewWorker creates a new worker
-func NewWorker(st Storage, sender NotificationSender, repo NotificationRepository) *Worker {
-	return &Worker{st: st, sender: sender, repo: repo}
+func NewWorker(st Storage, txmgr TxManager, sender NotificationSender) *Worker {
+	return &Worker{st: st, txmgr: txmgr, sender: sender}
 }
 
 // sendLog sends a log entry
@@ -72,15 +81,22 @@ func (w *Worker) sendLog(ctx context.Context, entry log.Entry) {
 }
 
 // AddNotification schedules a notification to be sent at a specific time.
-func (w *Worker) AddNotification(ctx context.Context, n models.Notification) error {
-	if err := w.st.Enqueue(ctx, n.ID, n.When); err != nil {
-		w.sendLog(ctx, log.Error(err, "failed to enqueue notification", echo.Map{
-			"op":      "AddNotification",
-			"notifID": n.ID,
-		}))
-		return err
-	}
-	return nil
+func (w *Worker) AddNotification(ctx context.Context, n models.CreateNotificationRequest) error {
+	return w.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		id, err := tx.CreateNotification(ctx, n)
+		if err != nil {
+			return err
+		}
+
+		if err := w.st.Enqueue(ctx, id, n.When); err != nil {
+			w.sendLog(ctx, log.Error(err, "failed to enqueue notification", echo.Map{
+				"op":      "AddNotification",
+				"notifID": id,
+			}))
+			return err
+		}
+		return nil
+	})
 }
 
 // DeleteNotification cancels a scheduled notification by removing it from the queue.
@@ -112,33 +128,45 @@ func (w *Worker) Handle(ctx context.Context) {
 				continue
 			}
 
-			for _, id := range ids {
-				notification, err := w.repo.GetByID(ctx, id)
-				if err != nil {
-					w.sendLog(ctx, log.Error(err, "failed to get notification", echo.Map{
-						"op":      "Handle",
-						"notifID": id,
-					}))
-					continue
-				}
-
-				if err := w.sender.Send(ctx, notification); err != nil {
-					w.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
-						"op":      "Handle",
-						"notifID": id,
-					}))
-					// simple retry after 1 minute
-					_ = w.st.Enqueue(ctx, id, time.Now().Add(time.Minute))
-					continue
-				}
-
-				if err := w.repo.DeleteByID(ctx, id); err != nil {
-					w.sendLog(ctx, log.Error(err, "failed to delete notification after send", echo.Map{
-						"op":      "Handle",
-						"notifID": id,
-					}))
-				}
+			if err := w.sendNotifications(ctx, ids); err != nil {
+				w.sendLog(ctx, log.Error(err, "failed to send notifications", echo.Map{
+					"op": "Handle",
+				}))
+				continue
 			}
 		}
 	}
+}
+
+func (w *Worker) sendNotifications(ctx context.Context, ids []string) error {
+	return w.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
+		for _, id := range ids {
+			notification, err := tx.GetNotificationByID(ctx, id)
+			if err != nil {
+				w.sendLog(ctx, log.Error(err, "failed to get notification", echo.Map{
+					"op":      "Handle",
+					"notifID": id,
+				}))
+				continue
+			}
+
+			if err := w.sender.Send(ctx, notification); err != nil {
+				w.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
+					"op":      "Handle",
+					"notifID": id,
+				}))
+				// simple retry after 1 minute
+				_ = w.st.Enqueue(ctx, id, time.Now().Add(time.Minute))
+				continue
+			}
+
+			if err := tx.DeleteNotificationByID(ctx, id); err != nil {
+				w.sendLog(ctx, log.Error(err, "failed to delete notification after send", echo.Map{
+					"op":      "Handle",
+					"notifID": id,
+				}))
+			}
+		}
+		return nil
+	})
 }

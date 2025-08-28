@@ -46,3 +46,31 @@ type tx struct {
 	repos *Repositories
 	tx    pgx.Tx
 }
+
+func (t *tx) Rollback(ctx context.Context) error {
+	return t.tx.Rollback(ctx)
+}
+
+func (t *tx) Commit(ctx context.Context) error {
+	return t.tx.Commit(ctx)
+}
+
+func (m *TxManager) Do(ctx context.Context, fn func(ctx context.Context, tx *tx) error) error {
+	pgTx, err := m.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	t := &tx{
+		ctx:   ctx,
+		repos: m.repos,
+		tx:    pgTx,
+	}
+
+	if err := fn(ctx, t); err != nil {
+		_ = t.Rollback(ctx)
+		return err
+	}
+
+	return t.Commit(ctx)
+}

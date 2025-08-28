@@ -11,12 +11,12 @@ import (
 )
 
 type EventRepository interface {
-	GetOld(ctx context.Context, limit int) ([]models.Event, error)
-	Delete(ctx context.Context, id string) error
+	GetOldEvents(ctx context.Context, limit int) ([]models.Event, error)
+	DeleteEvent(ctx context.Context, id string) error
 }
 
 type ArchiveRepository interface {
-	Archive(ctx context.Context, event models.Event) error
+	ArchiveEvent(ctx context.Context, event models.Event) error
 }
 
 type Tx interface {
@@ -88,7 +88,7 @@ func (s *Service) Run() {
 
 func (s *Service) archive() {
 	if err := s.txmgr.Do(s.mainCtx, func(ctx context.Context, tx Tx) error {
-		events, err := tx.GetOld(ctx, s.cfg.BatchSize)
+		events, err := tx.GetOldEvents(ctx, s.cfg.BatchSize)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
 				return models.ErrNotFound
@@ -97,7 +97,7 @@ func (s *Service) archive() {
 		}
 
 		for _, event := range events {
-			if err := tx.Archive(ctx, event); err != nil {
+			if err := tx.ArchiveEvent(ctx, event); err != nil {
 				return err
 			}
 		}
