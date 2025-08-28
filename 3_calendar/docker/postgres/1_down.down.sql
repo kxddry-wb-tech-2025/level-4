@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS archives;
+DROP TABLE IF EXISTS events;
+DROP EXTENSION IF EXISTS "uuid-ossp";

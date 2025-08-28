@@ -2,16 +2,14 @@ version: "3.9"
 
 services:
   app:
-    # image: golang:1.25.0-bookworm
-    # working_dir: /app
-    # volumes:
-      # - ./:/app
-    command: sh -c "go run ./cmd/calendar/main.go"
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - CONFIG_PATH=/app/configs/config.docker.yaml
-      - STORAGE_PASSWORD=calendarpass
-      - REDIS_PASSWORD=calendarpass
-      - SMTP_PASSWORD=
+      - STORAGE_PASSWORD=$STORAGE_PASSWORD
+      - REDIS_PASSWORD=$REDIS_PASSWORD
+      - SMTP_PASSWORD=$SMTP_PASSWORD
       - TZ=UTC
     ports:
       - "8080:8080"
@@ -21,21 +19,37 @@ services:
       - mailhog
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
+    container_name: postgres
     environment:
-      - POSTGRES_DB=calendar
-      - POSTGRES_USER=calendar
-      - POSTGRES_PASSWORD=calendarpass
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=$POSTGRES_USER
+      - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+      - POSTGRES_DB=$POSTGRES_DB
+    expose:
+      - "5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U calendar -d calendar"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-calendar} || exit 1"]
       interval: 5s
       timeout: 3s
-      retries: 30
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+  
+  migrator:
+    image: migrate/migrate:v4.17.1
+    container_name: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./docker/postgres:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database
+      - postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB?sslmode=disable
+      - up
 
   redis:
     image: redis:7-alpine
@@ -51,10 +65,12 @@ services:
       retries: 30
 
   mailhog:
+  # im not sure this is even how we do it
     image: mailhog/mailhog:latest
     ports:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
+    restart: unless-stopped
 
 volumes:
   pgdata:
