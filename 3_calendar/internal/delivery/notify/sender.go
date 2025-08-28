@@ -30,7 +30,7 @@ func (s *Sender) Send(ctx context.Context, notification models.Notification) err
 		return s.emailClient.SendEmail(ctx, &delivery.EmailMessage{
 			From:      s.config.Username,
 			To:        []string{notification.Recipient},
-			Subject:   notification.Message,
+			Subject:   "Event Reminder",
 			Body:      notification.Message,
 			IsHTML:    true,
 			FilePaths: nil,

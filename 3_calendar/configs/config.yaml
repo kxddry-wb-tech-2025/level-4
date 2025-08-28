@@ -10,3 +10,18 @@ smtp:
   port: 587
   username: your-email@gmail.com
   # SMTP_PASSWORD will be loaded from environment variable
+
+redis:
+  host: localhost
+  port: 6379
+  username: default
+  # REDIS_PASSWORD will be loaded from environment variable
+  database: 0
+
+storage:
+  host: localhost
+  port: 5432
+  username: calendar
+  # STORAGE_PASSWORD will be loaded from environment variable
+  database: calendar
+  sslmode: disable

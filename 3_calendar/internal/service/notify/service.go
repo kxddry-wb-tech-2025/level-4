@@ -9,25 +9,25 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type Worker interface {
+	AddNotification(ctx context.Context, notification models.Notification) error
+	DeleteNotification(ctx context.Context, id string) error
+}
+
 type NotificationRepository interface {
 	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
 	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
 	DeleteAllByEventID(ctx context.Context, eventID string) error
 }
 
-type NotificationSender interface {
-	Send(ctx context.Context, notification models.Notification) error
-	Cancel(ctx context.Context, id string) error
-}
-
 type Service struct {
-	sender NotificationSender
 	repo   NotificationRepository
+	worker Worker
 	logs   chan<- log.Entry
 }
 
-func NewService(sender NotificationSender, repo NotificationRepository) *Service {
-	return &Service{sender: sender, repo: repo}
+func NewService(repo NotificationRepository, worker Worker) *Service {
+	return &Service{repo: repo, worker: worker}
 }
 
 func (s *Service) Process(ctx context.Context, jobs <-chan any) {
@@ -87,7 +87,7 @@ func (s *Service) createNotification(ctx context.Context, notification models.Cr
 		return err
 	}
 
-	err = s.sender.Send(ctx, models.Notification{
+	err = s.worker.AddNotification(ctx, models.Notification{
 		EventID:   notification.EventID,
 		ID:        id,
 		Message:   notification.Message,
@@ -118,7 +118,7 @@ func (s *Service) deleteNotifications(ctx context.Context, eventID string) error
 	}
 
 	for _, id := range ids {
-		err := s.sender.Cancel(ctx, id)
+		err := s.worker.DeleteNotification(ctx, id)
 		if err != nil {
 			s.sendLog(ctx, log.Error(err, "failed to cancel notification", echo.Map{
 				"op": "deleteNotifications",

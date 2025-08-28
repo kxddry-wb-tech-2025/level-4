@@ -1,0 +1,125 @@
+package worker
+
+import (
+	"calendar/internal/models"
+	"calendar/internal/models/log"
+	"context"
+	"time"
+
+	"github.com/labstack/echo/v4"
+)
+
+type Storage interface {
+	PopDue(ctx context.Context, key string, limit int64) ([]string, error)
+	Enqueue(ctx context.Context, id string, at time.Time) error
+	Remove(ctx context.Context, id string) error
+}
+
+type NotificationRepository interface {
+	Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error)
+	GetIDsByEventID(ctx context.Context, eventID string) ([]string, error)
+	DeleteAllByEventID(ctx context.Context, eventID string) error
+	GetByID(ctx context.Context, id string) (models.Notification, error)
+	DeleteByID(ctx context.Context, id string) error
+}
+
+type NotificationSender interface {
+	Send(ctx context.Context, notification models.Notification) error
+}
+
+type Worker struct {
+	st     Storage
+	sender NotificationSender
+	repo   NotificationRepository
+	logs   chan<- log.Entry
+}
+
+func NewWorker(st Storage, sender NotificationSender, repo NotificationRepository, logs chan<- log.Entry) *Worker {
+	return &Worker{st: st, sender: sender, repo: repo, logs: logs}
+}
+
+func (w *Worker) sendLog(ctx context.Context, entry log.Entry) {
+	if w.logs == nil {
+		return
+	}
+
+	go func(ctx context.Context) {
+		select {
+		case w.logs <- entry:
+		case <-ctx.Done():
+		}
+	}(ctx)
+}
+
+// AddNotification schedules a notification to be sent at a specific time.
+func (w *Worker) AddNotification(ctx context.Context, n models.Notification) error {
+	if err := w.st.Enqueue(ctx, n.ID, n.When); err != nil {
+		w.sendLog(ctx, log.Error(err, "failed to enqueue notification", echo.Map{
+			"op":      "AddNotification",
+			"notifID": n.ID,
+		}))
+		return err
+	}
+	return nil
+}
+
+// DeleteNotification cancels a scheduled notification by removing it from the queue.
+func (w *Worker) DeleteNotification(ctx context.Context, id string) error {
+	if err := w.st.Remove(ctx, id); err != nil {
+		w.sendLog(ctx, log.Error(err, "failed to remove scheduled notification", echo.Map{
+			"op":      "DeleteNotification",
+			"notifID": id,
+		}))
+		return err
+	}
+	return nil
+}
+
+func (w *Worker) Handle(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				ids, err := w.st.PopDue(ctx, "notify:due", 100)
+				if err != nil {
+					w.sendLog(ctx, log.Error(err, "failed to pop due", echo.Map{
+						"op": "Handle",
+					}))
+					continue
+				}
+
+				for _, id := range ids {
+					notification, err := w.repo.GetByID(ctx, id)
+					if err != nil {
+						w.sendLog(ctx, log.Error(err, "failed to get notification", echo.Map{
+							"op":      "Handle",
+							"notifID": id,
+						}))
+						continue
+					}
+
+					if err := w.sender.Send(ctx, notification); err != nil {
+						w.sendLog(ctx, log.Error(err, "failed to send notification", echo.Map{
+							"op":      "Handle",
+							"notifID": id,
+						}))
+						// simple retry after 1 minute
+						_ = w.st.Enqueue(ctx, id, time.Now().Add(time.Minute))
+						continue
+					}
+
+					if err := w.repo.DeleteByID(ctx, id); err != nil {
+						w.sendLog(ctx, log.Error(err, "failed to delete notification after send", echo.Map{
+							"op":      "Handle",
+							"notifID": id,
+						}))
+					}
+				}
+			}
+		}
+	}()
+}

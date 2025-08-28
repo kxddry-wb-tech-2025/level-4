@@ -12,6 +12,15 @@ type Config struct {
 	Server  ServerConfig  `yaml:"server"`
 	SMTP    EmailConfig   `yaml:"smtp"`
 	Storage StorageConfig `yaml:"storage"`
+	Redis   RedisConfig   `yaml:"redis"`
+}
+
+type RedisConfig struct {
+	Host     string `yaml:"host" env-required:"true"`
+	Port     int    `yaml:"port" env-required:"true"`
+	Username string `yaml:"username" env-required:"true"`
+	Password string `env:"REDIS_PASSWORD" env-required:"true"`
+	Database int    `yaml:"database" env-default:"0"`
 }
 
 type EmailConfig struct {

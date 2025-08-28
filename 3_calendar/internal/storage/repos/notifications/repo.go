@@ -10,12 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type NotificationRepository interface {
-	Create(notification models.Notification) error
-	GetIDsByEventID(eventID string) ([]string, error)
-	DeleteAllByEventID(eventID string) error
-}
-
+// Repository provides DB access for notifications
 type Repository struct {
 	pool *pgxpool.Pool
 }
@@ -30,7 +25,7 @@ func NewRepository(ctx context.Context, connStr string) (*Repository, error) {
 
 func (r *Repository) Create(ctx context.Context, notification models.CreateNotificationRequest) (string, error) {
 	query := `
-	INSERT INTO notifications (event_id, message, when, channel, recipient)
+	INSERT INTO notifications (event_id, message, "when", channel, recipient)
 	VALUES ($1, $2, $3, $4, $5)
 	RETURNING id
 	`
@@ -81,4 +76,33 @@ func (r *Repository) DeleteAllByEventID(ctx context.Context, eventID string) err
 		return err
 	}
 	return err
+}
+
+func (r *Repository) GetByID(ctx context.Context, id string) (models.Notification, error) {
+	query := `
+	SELECT id, event_id, message, "when", channel, recipient
+	FROM notifications
+	WHERE id = $1
+	`
+	row := r.pool.QueryRow(ctx, query, id)
+	var n models.Notification
+	if err := row.Scan(&n.ID, &n.EventID, &n.Message, &n.When, &n.Channel, &n.Recipient); err != nil {
+		return models.Notification{}, err
+	}
+	return n, nil
+}
+
+func (r *Repository) DeleteByID(ctx context.Context, id string) error {
+	query := `
+	DELETE FROM notifications
+	WHERE id = $1
+	`
+	_, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return storage.ErrNotFound
+		}
+		return err
+	}
+	return nil
 }
