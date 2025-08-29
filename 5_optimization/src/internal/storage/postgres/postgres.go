@@ -27,6 +27,70 @@ func (s *Storage) begin(ctx context.Context) (*sql.Tx, error) {
 	return s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
+// getOrderWithTx reads order data within an existing transaction.
+func getOrderWithTx(ctx context.Context, tx *sql.Tx, orderUID string) (_ *models.Order, err error) {
+	const op = "storage.postgres.getOrderWithTx"
+	order := models.Order{}
+	var (
+		deliveryID  uint
+		transaction string
+	)
+	err = tx.QueryRowContext(ctx, `SELECT order_uid, track_number, entry, delivery, payment, locale, internal_signature,
+       customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard FROM orders WHERE order_uid = $1`, orderUID).Scan(
+		&order.OrderUID, &order.TrackNumber, &order.Entry, &deliveryID, &transaction, &order.Locale, &order.InternalSignature, &order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID, &order.DateCreated, &order.OofShard,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmterr(op, storage.ErrOrderNotFound)
+		}
+		return nil, fmterr(op, err)
+	}
+
+	// payment
+	err = tx.QueryRowContext(ctx, `SELECT transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, goods_total, custom_fee
+		FROM payments WHERE transaction = $1`, transaction).Scan(
+		&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency, &order.Payment.Provider, &order.Payment.Amount, &order.Payment.PaymentDT, &order.Payment.Bank,
+		&order.Payment.DeliveryCost, &order.Payment.GoodsTotal, &order.Payment.CustomFee)
+	if err != nil {
+		return nil, fmterr(op, err)
+	}
+
+	// delivery
+	var d models.Delivery
+	err = tx.QueryRowContext(ctx, `SELECT u.name, u.phone, a.zip, a.city, a.address, a.region, u.email
+				FROM addresses a
+					 JOIN users u ON u.customer_id = a.customer_id
+				WHERE a.id = $1;
+`, deliveryID).Scan(&d.Name, &d.Phone, &d.Zip, &d.City, &d.Address, &d.Region, &d.Email)
+	if err != nil {
+		return nil, fmterr(op, err)
+	}
+	order.Delivery = d
+
+	// get all items out
+	items, err := tx.QueryContext(ctx, `SELECT  i.chrt_id, oi.track_number, i.price, oi.rid, i.name, oi.sale, i.size, oi.total_price, i.nm_id, i.brand, oi.status
+				FROM order_items oi
+				JOIN items i ON i.nm_id = oi.item_id
+				WHERE oi.track_number = $1;
+	`, order.TrackNumber)
+	if err != nil {
+		return nil, fmterr(op, err)
+	}
+	defer func() { _ = items.Close() }()
+	for items.Next() {
+		item := models.Item{}
+		err = items.Scan(&item.ChrtID, &item.TrackNumber, &item.Price, &item.RID, &item.Name, &item.Sale, &item.Size, &item.TotalPrice, &item.NmID, &item.Brand, &item.Status)
+		if err != nil {
+			return nil, fmterr(op, err)
+		}
+		order.Items = append(order.Items, item)
+	}
+	if err := items.Err(); err != nil {
+		return nil, fmterr(op, err)
+	}
+	return &order, nil
+}
+
 // SaveOrder saves an order.
 func (s *Storage) SaveOrder(ctx context.Context, order *models.Order) error {
 	const op = "storage.postgres.SaveOrder"
@@ -116,74 +180,20 @@ func (s *Storage) GetOrder(ctx context.Context, orderUID string) (_ *models.Orde
 	const op = "storage.postgres.GetOrder"
 	start := time.Now()
 	defer func() { metrics.ObserveRepositoryDuration("GetOrder", time.Since(start)) }()
-	order := models.Order{}
 	tx, err := s.begin(ctx)
 	if err != nil {
 		return nil, fmterr(op, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var (
-		deliveryID  uint
-		transaction string
-	)
-	err = tx.QueryRow(`SELECT order_uid, track_number, entry, delivery, payment, locale, internal_signature,
-       customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard FROM orders WHERE order_uid = $1`, orderUID).Scan(
-		&order.OrderUID, &order.TrackNumber, &order.Entry, &deliveryID, &transaction, &order.Locale, &order.InternalSignature, &order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID, &order.DateCreated, &order.OofShard,
-	)
+	order, err := getOrderWithTx(ctx, tx, orderUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmterr(op, storage.ErrOrderNotFound)
-		}
-		return nil, fmterr(op, err)
-	}
-
-	// payment
-	err = tx.QueryRow(`SELECT transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, goods_total, custom_fee
-		FROM payments WHERE transaction = $1`, transaction).Scan(
-		&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency, &order.Payment.Provider, &order.Payment.Amount, &order.Payment.PaymentDT, &order.Payment.Bank,
-		&order.Payment.DeliveryCost, &order.Payment.GoodsTotal, &order.Payment.CustomFee)
-	if err != nil {
-		return nil, fmterr(op, err)
-	}
-
-	// delivery
-	var d models.Delivery
-	err = tx.QueryRow(`SELECT u.name, u.phone, a.zip, a.city, a.address, a.region, u.email
-				FROM addresses a
-					 JOIN users u ON u.customer_id = a.customer_id
-				WHERE a.id = $1;
-`, deliveryID).Scan(&d.Name, &d.Phone, &d.Zip, &d.City, &d.Address, &d.Region, &d.Email)
-	if err != nil {
-		return nil, fmterr(op, err)
-	}
-	order.Delivery = d
-
-	// get all items out
-	items, err := tx.Query(`SELECT  i.chrt_id, oi.track_number, i.price, oi.rid, i.name, oi.sale, i.size, oi.total_price, i.nm_id, i.brand, oi.status
-				FROM order_items oi
-				JOIN items i ON i.nm_id = oi.item_id
-				WHERE oi.track_number = $1;
-	`, order.TrackNumber)
-	if err != nil {
-		return nil, fmterr(op, err)
-	}
-	defer func() { _ = items.Close() }()
-	for items.Next() {
-		item := models.Item{}
-		err = items.Scan(&item.ChrtID, &item.TrackNumber, &item.Price, &item.RID, &item.Name, &item.Sale, &item.Size, &item.TotalPrice, &item.NmID, &item.Brand, &item.Status)
-		if err != nil {
-			return nil, fmterr(op, err)
-		}
-		order.Items = append(order.Items, item)
-	}
-	if err := items.Err(); err != nil {
-		return nil, fmterr(op, err)
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmterr(op, err)
 	}
-	return &order, nil
+	return order, nil
 }
 
 // NewStorage initializes the storage.
@@ -205,25 +215,40 @@ func (s *Storage) AllOrders(ctx context.Context) ([]*models.Order, error) {
 	const op = "storage.postgres.AllOrders"
 	start := time.Now()
 	defer func() { metrics.ObserveRepositoryDuration("AllOrders", time.Since(start)) }()
-	uids, err := s.db.QueryContext(ctx, `SELECT order_uid FROM orders ORDER BY order_uid`)
+	tx, err := s.begin(ctx)
+	if err != nil {
+		return nil, fmterr(op, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	uids, err := tx.QueryContext(ctx, `SELECT order_uid FROM orders ORDER BY order_uid`)
 	if err != nil {
 		return nil, fmterr(op, err)
 	}
 	defer func() { _ = uids.Close() }()
-	var orders []*models.Order
+	// Read all UIDs first to avoid nested queries while the rows cursor is open.
+	var uidList []string
 	for uids.Next() {
 		var uid string
-		err = uids.Scan(&uid)
-		if err != nil {
+		if err = uids.Scan(&uid); err != nil {
 			return nil, fmterr(op, err)
 		}
-		order, err := s.GetOrder(ctx, uid)
+		uidList = append(uidList, uid)
+	}
+	if err := uids.Err(); err != nil {
+		return nil, fmterr(op, err)
+	}
+	_ = uids.Close()
+
+	var orders []*models.Order
+	for _, uid := range uidList {
+		order, err := getOrderWithTx(ctx, tx, uid)
 		if err != nil {
 			return nil, fmterr(op, err)
 		}
 		orders = append(orders, order)
 	}
-	if err := uids.Err(); err != nil {
+	if err := tx.Commit(); err != nil {
 		return nil, fmterr(op, err)
 	}
 	return orders, nil

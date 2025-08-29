@@ -18,7 +18,7 @@ type cacheEntry struct {
 // Cache uses TTL + LRU for cache invalidation.
 type Cache struct {
 	mp       map[string]*cacheEntry
-	mu       *sync.Mutex
+	mu       sync.Mutex
 	ttl      time.Duration
 	stopChan chan struct{}
 	limit    int
@@ -29,7 +29,7 @@ type Cache struct {
 func NewCache(ttl time.Duration, limit int) *Cache {
 	cc := &Cache{
 		mp:       make(map[string]*cacheEntry),
-		mu:       new(sync.Mutex),
+		mu:       sync.Mutex{},
 		ttl:      ttl,
 		stopChan: make(chan struct{}),
 		limit:    limit,
@@ -45,19 +45,16 @@ func (c *Cache) SaveOrder(ctx c.Context, order *models.Order) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	now := time.Now()
 	if entry, ok := c.mp[order.OrderUID]; ok {
 		entry.order = *order
-		entry.time = time.Now()
+		entry.time = now
 		c.lru.MoveToFront(entry.lruElem)
 		return nil
 	}
 
 	elem := c.lru.PushFront(order.OrderUID)
-	c.mp[order.OrderUID] = &cacheEntry{
-		order:   *order,
-		time:    time.Now(),
-		lruElem: elem,
-	}
+	c.mp[order.OrderUID] = &cacheEntry{order: *order, time: now, lruElem: elem}
 
 	if c.lru.Len() > c.limit {
 		c.removeLRU()
