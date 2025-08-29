@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	c "context"
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"l0/internal/storage"
 	"time"
 
-	"golang.org/x/net/context"
+	_ "github.com/lib/pq"
 )
 
 func fmterr(op string, err error) error {
@@ -23,12 +23,12 @@ type Storage struct {
 	db *sql.DB
 }
 
-func (s *Storage) begin(ctx c.Context) (*sql.Tx, error) {
+func (s *Storage) begin(ctx context.Context) (*sql.Tx, error) {
 	return s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // SaveOrder saves an order.
-func (s *Storage) SaveOrder(ctx c.Context, order *models.Order) error {
+func (s *Storage) SaveOrder(ctx context.Context, order *models.Order) error {
 	const op = "storage.postgres.SaveOrder"
 	start := time.Now()
 	defer func() { metrics.ObserveRepositoryDuration("SaveOrder", time.Since(start)) }()
@@ -112,7 +112,7 @@ func (s *Storage) SaveOrder(ctx c.Context, order *models.Order) error {
 }
 
 // GetOrder gets an order.
-func (s *Storage) GetOrder(ctx c.Context, orderUID string) (_ *models.Order, err error) {
+func (s *Storage) GetOrder(ctx context.Context, orderUID string) (_ *models.Order, err error) {
 	const op = "storage.postgres.GetOrder"
 	start := time.Now()
 	defer func() { metrics.ObserveRepositoryDuration("GetOrder", time.Since(start)) }()

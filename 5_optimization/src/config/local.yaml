@@ -9,17 +9,8 @@ cache:
   ttl: 15m
 
 storage:
-  host: db
+  host: postgres
   port: 5432
   user: postgres
-  dbname: l0
+  dbname: postgres
   sslmode: disable
-
-kafka:
-  brokers: [kafka:9092]
-  reader:
-    topic: orders
-    group_id: app
-  writer:
-    topic: dlq
-    client_id: app

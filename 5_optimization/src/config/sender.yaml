@@ -1,8 +1,0 @@
-
-brokers: [kafka:9092]
-writer:
-  topic: orders
-  client_id: sender
-reader:
-  topic: ...
-  group_id: ...

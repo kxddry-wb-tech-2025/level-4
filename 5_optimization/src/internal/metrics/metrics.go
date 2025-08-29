@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 var (
@@ -56,10 +55,6 @@ var (
 )
 
 func Register() {
-	// default Go and process collectors
-	prometheus.MustRegister(collectors.NewGoCollector())
-	prometheus.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
 	// custom metrics
 	prometheus.MustRegister(RequestsPerSecond)
 	prometheus.MustRegister(RequestDuration)

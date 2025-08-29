@@ -73,7 +73,7 @@ func (s *Stresser) Stress(orders []models.Order, reuse bool) {
 		}
 	}
 
-	if reuse {
+	if !reuse {
 		go process()
 	} else {
 		go func() {

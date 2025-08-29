@@ -6,7 +6,6 @@ import "time"
 type Config struct {
 	Env     string  `yaml:"env" env-default:"dev"` // local, dev, prod
 	Storage Storage `yaml:"storage"`
-	Kafka   Kafka   `yaml:"kafka"`
 	Server  Server  `yaml:"server"`
 	Cache   Cache   `yaml:"cache"`
 }
@@ -32,13 +31,6 @@ type Server struct {
 type Cache struct {
 	TTL   time.Duration `yaml:"ttl" env-default:"15m"`
 	Limit int           `yaml:"limit" env-default:"1000"`
-}
-
-// Kafka is a structure with configs for a broker like Kafka
-type Kafka struct {
-	Brokers []string     `yaml:"brokers" env-required:"true"`
-	Reader  ReaderConfig `yaml:"reader" env-required:"true"`
-	Writer  WriterConfig `yaml:"writer" env-required:"true"`
 }
 
 // ReaderConfig is a structure with config for kafka reader

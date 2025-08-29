@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/go-resty/resty/v2 v2.16.5
+	github.com/joho/godotenv v1.5.1
 	go.uber.org/zap v1.27.0
 )
 
