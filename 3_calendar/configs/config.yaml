@@ -6,26 +6,28 @@ server:
   idle_timeout: 60s
 
 smtp:
-  host: smtp.gmail.com
-  port: 587
-  username: your-email@gmail.com
-  # SMTP_PASSWORD will be loaded from environment variable
+  host: localhost
+  port: 1025
+  username: "email@example.com"
 
 redis:
   host: localhost
   port: 6379
   username: default
-  # REDIS_PASSWORD will be loaded from environment variable
   database: 0
 
 storage:
   host: localhost
   port: 5432
-  username: calendar
-  # STORAGE_PASSWORD will be loaded from environment variable
+  username: user
   database: calendar
   sslmode: disable
 
 worker:
-  interval: 30s
+  interval: 1s
   limit: 100
+
+archiver:
+  interval: 30s
+  older_than: 30d
+  batch_size: 100

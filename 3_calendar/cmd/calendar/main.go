@@ -35,17 +35,17 @@ func main() {
 	mainCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	redis := redisStore.NewStorage(cfg.Redis)
+	redis := redisStore.NewStorage(&cfg.Redis)
 
-	emailClient := smtp.NewEmailClient(cfg.SMTP)
-	sender := notifyDelivery.NewSender(emailClient, cfg.SMTP)
+	emailClient := smtp.NewEmailClient(&cfg.SMTP)
+	sender := notifyDelivery.NewSender(emailClient, &cfg.SMTP)
 
 	txmgr, err := txmanager.New(mainCtx, cfg.Storage.DSN())
 	if err != nil {
 		panic(err)
 	}
 
-	w := workerSvc.NewWorker(redis, txmgr.AsWorkerTxManager(), sender, cfg.Worker)
+	w := workerSvc.NewWorker(redis, txmgr.AsWorkerTxManager(), sender, &cfg.Worker)
 	wlogs := w.Logs()
 
 	go w.Handle(mainCtx)
@@ -59,7 +59,7 @@ func main() {
 
 	go nSvc.Process(jobs)
 
-	srv := http.NewServer(mainCtx, cfg.Server, eSvc)
+	srv := http.NewServer(mainCtx, &cfg.Server, eSvc)
 	logs := srv.Logs()
 
 	// Fan in all logs into the logger

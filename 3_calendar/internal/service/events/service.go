@@ -121,6 +121,9 @@ func (s *Service) GetEvents(ctx context.Context) ([]models.Event, error) {
 		s.sendLog(log.Error(err, "failed to get events", map[string]any{
 			"op": "getEvents",
 		}))
+		if errors.Is(err, storage.ErrNotFound) {
+			return []models.Event{}, nil
+		}
 		return nil, err
 	}
 
@@ -140,7 +143,7 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 		}))
 
 		if errors.Is(err, storage.ErrNotFound) {
-			return models.Event{}, models.ErrNotFound
+			return models.Event{}, nil
 		}
 
 		return models.Event{}, err

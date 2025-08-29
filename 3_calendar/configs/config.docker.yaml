@@ -8,7 +8,8 @@ server:
 smtp:
   host: mailhog
   port: 1025
-  username: ""
+  username: "email@example.com"
+  tls_enabled: false
 
 redis:
   host: redis
@@ -19,8 +20,15 @@ redis:
 storage:
   host: postgres
   port: 5432
-  username: calendar
+  username: user
   database: calendar
   sslmode: disable
 
+worker:
+  interval: 1s
+  limit: 100
 
+archiver:
+  interval: 30s
+  older_than: 30d
+  batch_size: 100

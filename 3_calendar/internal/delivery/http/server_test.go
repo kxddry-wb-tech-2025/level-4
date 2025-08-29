@@ -1,6 +1,7 @@
 package http
 
 import (
+	"calendar/internal/delivery/validate"
 	"calendar/internal/models"
 	"context"
 	"net/http"
@@ -8,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	v10 "github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
@@ -31,7 +31,7 @@ func (fakeSvc) DeleteEvent(ctx context.Context, id string) error { return nil }
 func TestRoutes_BasicFlow(t *testing.T) {
 	e := echo.New()
 	s := &Server{e: e, svc: fakeSvc{}, port: 0, mainCtx: context.Background()}
-	e.Validator = &Validator{validator: v10.New()}
+	e.Validator = validate.New()
 	e.POST("/events", s.createEvent)
 	e.GET("/events", s.getEvents)
 	e.GET("/events/:id", s.getEvent)
@@ -39,7 +39,7 @@ func TestRoutes_BasicFlow(t *testing.T) {
 	e.DELETE("/events/:id", s.deleteEvent)
 
 	// create
-	req := httptest.NewRequest(http.MethodPost, "/events", strings.NewReader(`{"title":"t","description":"d","start":"2025-01-01T00:00:00Z","end":"2025-01-01T01:00:00Z","notify":false,"email":"a@b.c"}`))
+	req := httptest.NewRequest(http.MethodPost, "/events", strings.NewReader(`{"title":"t","description":"d","start":"2026-01-01T00:00:00Z","end":"2026-01-01T01:00:00Z","notify":false,"email":"a@b.c"}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)

@@ -17,6 +17,12 @@ type EmailClient struct {
 func NewEmailClient(cfg *config.EmailConfig) *EmailClient {
 	dialer := gomail.NewDialer(cfg.Host, cfg.Port, cfg.Username, cfg.Password)
 
+	// Configure TLS based on config
+	if !cfg.TLSEnabled {
+		dialer.SSL = false
+		dialer.TLSConfig = nil
+	}
+
 	return &EmailClient{
 		dialer: dialer,
 	}

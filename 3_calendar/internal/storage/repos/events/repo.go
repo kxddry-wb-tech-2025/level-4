@@ -54,7 +54,7 @@ func (r *Repository) sendLog(entry log.Entry) {
 // Create creates a new event.
 func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest) (string, error) {
 	query := `
-	INSERT INTO events (title, description, start, end, notify, email)
+	INSERT INTO events (title, description, "start", "end", notify, email)
 	VALUES ($1, $2, $3, $4, $5, $6)
 	RETURNING id
 	`
@@ -76,7 +76,7 @@ func (r *Repository) Create(ctx context.Context, event models.CreateEventRequest
 // CreateWithID creates a new event with an id.
 func (r *Repository) CreateWithID(ctx context.Context, id string, event models.CreateEventRequest) error {
 	query := `
-	INSERT INTO events (id, title, description, start, end, notify, email)
+	INSERT INTO events (id, title, description, "start", "end", notify, email)
 	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	var err error
@@ -95,7 +95,7 @@ func (r *Repository) CreateWithID(ctx context.Context, id string, event models.C
 // GetAll gets all events
 func (r *Repository) GetAll(ctx context.Context) ([]models.Event, error) {
 	query := `
-	SELECT id, title, description, start, end, notify, email
+	SELECT id, title, description, "start", "end", notify, email
 	FROM events
 	`
 	var rows pgx.Rows
@@ -133,7 +133,7 @@ func (r *Repository) GetAll(ctx context.Context) ([]models.Event, error) {
 // Get gets an event by id
 func (r *Repository) Get(ctx context.Context, id string) (models.Event, error) {
 	query := `
-	SELECT id, title, description, start, end, notify, email
+	SELECT id, title, description, "start", "end", notify, email
 	FROM events
 	WHERE id = $1
 	`
@@ -159,7 +159,7 @@ func (r *Repository) Get(ctx context.Context, id string) (models.Event, error) {
 func (r *Repository) Update(ctx context.Context, id string, event models.UpdateEventRequest) error {
 	query := `
 	UPDATE events
-	SET title = $1, description = $2, start = $3, end = $4, notify = $5, email = $6
+	SET title = $1, description = $2, "start" = $3, "end" = $4, notify = $5, email = $6
 	WHERE id = $7
 	`
 	var err error

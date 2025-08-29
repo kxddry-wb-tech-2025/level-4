@@ -52,7 +52,7 @@ func (r *Repository) sendLog(entry log.Entry) {
 // Archive archives an event.
 func (r *Repository) Archive(ctx context.Context, event models.Event) error {
 	query := `
-	INSERT INTO archives (event_id, title, description, start, end, notify, email)
+	INSERT INTO archives (event_id, title, description, "start", "end", notify, email)
 	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 

@@ -2,13 +2,13 @@ package http
 
 import (
 	"calendar/internal/config"
+	"calendar/internal/delivery/validate"
 	"calendar/internal/models"
 	"calendar/internal/models/log"
 	"context"
 	"fmt"
 	"net/http"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -35,7 +35,7 @@ type Service interface {
 // NewServer creates a new HTTP server
 func NewServer(ctx context.Context, sCfg *config.ServerConfig, service Service) *Server {
 	e := echo.New()
-	e.Validator = &Validator{validator: validator.New()}
+	e.Validator = validate.New()
 	e.Server.ReadTimeout = sCfg.Timeout
 	e.Server.WriteTimeout = sCfg.Timeout
 	e.Server.IdleTimeout = sCfg.IdleTimeout
@@ -57,16 +57,6 @@ func (s *Server) Logs() <-chan log.Entry {
 	logs := make(chan log.Entry, log.ChannelCapacity)
 	s.logs = logs
 	return logs
-}
-
-// Validator is the validator for the application
-type Validator struct {
-	validator *validator.Validate
-}
-
-// Validate validates the input
-func (v *Validator) Validate(i interface{}) error {
-	return v.validator.Struct(i)
 }
 
 // setup sets up the server

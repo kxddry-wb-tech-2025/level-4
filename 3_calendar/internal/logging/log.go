@@ -17,10 +17,6 @@ func New(env string) *Logger {
 	var cfg zap.Config
 
 	cfg = zap.NewProductionConfig()
-	cfg.DisableStacktrace = true
-	cfg.DisableCaller = true
-	cfg.EncoderConfig.TimeKey = "ts"
-	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	switch env {
 	case "dev", "local":
@@ -35,6 +31,11 @@ func New(env string) *Logger {
 	default:
 		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	}
+
+	cfg.DisableStacktrace = true
+	cfg.DisableCaller = true
+	cfg.EncoderConfig.TimeKey = "ts"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	zl := zap.Must(cfg.Build())
 	return &Logger{log: zl}

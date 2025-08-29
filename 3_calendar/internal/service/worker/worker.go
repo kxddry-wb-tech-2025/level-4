@@ -132,6 +132,10 @@ func (w *Worker) Handle(ctx context.Context) {
 				continue
 			}
 
+			if len(ids) == 0 {
+				continue
+			}
+
 			if err := w.sendNotifications(ctx, ids); err != nil {
 				w.sendLog(ctx, log.Error(err, "failed to send notifications", echo.Map{
 					"op": "Handle",

@@ -9,12 +9,12 @@ import (
 
 // Config is the main configuration for the application
 type Config struct {
-	Env     string         `yaml:"env" env-default:"dev"`
-	Server  *ServerConfig  `yaml:"server"`
-	SMTP    *EmailConfig   `yaml:"smtp"`
-	Storage *StorageConfig `yaml:"storage"`
-	Redis   *RedisConfig   `yaml:"redis"`
-	Worker  *WorkerConfig  `yaml:"worker"`
+	Env     string        `yaml:"env" env-default:"dev"`
+	Server  ServerConfig  `yaml:"server"`
+	SMTP    EmailConfig   `yaml:"smtp"`
+	Storage StorageConfig `yaml:"storage"`
+	Redis   RedisConfig   `yaml:"redis"`
+	Worker  WorkerConfig  `yaml:"worker"`
 }
 
 // RedisConfig is the configuration for the Redis database
@@ -28,10 +28,11 @@ type RedisConfig struct {
 
 // EmailConfig is the configuration for the email server
 type EmailConfig struct {
-	Host     string `yaml:"host" env-required:"true"`
-	Port     int    `yaml:"port" env-required:"true"`
-	Username string `yaml:"username" env-required:"true"`
-	Password string `env:"SMTP_PASSWORD" env-required:"true"`
+	Host       string `yaml:"host" env-required:"true"`
+	Port       int    `yaml:"port" env-required:"true"`
+	Username   string `yaml:"username" env-required:"true"`
+	Password   string `env:"SMTP_PASSWORD" env-required:"true"`
+	TLSEnabled bool   `yaml:"tls_enabled" env-default:"true"`
 }
 
 // ServerConfig is the configuration for the HTTP server
@@ -60,8 +61,8 @@ type ArchiverConfig struct {
 
 // WorkerConfig is the configuration for the worker service
 type WorkerConfig struct {
-	Interval time.Duration `yaml:"interval" env-default:"30s"`
-	Limit    int64         `yaml:"limit" env-default:"100"`
+	Interval time.Duration `yaml:"interval" env-required:"true"`
+	Limit    int64         `yaml:"limit" env-required:"true"`
 }
 
 // DSN returns the Data Source Name for the PostgreSQL database
@@ -75,6 +76,7 @@ func MustLoad(path string) *Config {
 	var cfg Config
 
 	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
+		fmt.Println(cfg)
 		panic(err)
 	}
 

@@ -1,10 +1,9 @@
-version: "3.9"
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: app
     environment:
       - CONFIG_PATH=/app/configs/config.docker.yaml
       - STORAGE_PASSWORD=$STORAGE_PASSWORD
@@ -17,6 +16,8 @@ services:
       - postgres
       - redis
       - mailhog
+    volumes:
+      - ./configs/config.docker.yaml:/app/configs/config.docker.yaml
 
   postgres:
     image: postgres:17-alpine
@@ -27,6 +28,8 @@ services:
       - POSTGRES_DB=$POSTGRES_DB
     expose:
       - "5432"
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -53,19 +56,22 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "calendarpass"]
+    environment:
+      - REDIS_PASSWORD=$REDIS_PASSWORD
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "$REDIS_PASSWORD"]
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a calendarpass ping | grep PONG"]
+      test: ["CMD-SHELL", "redis-cli -a $REDIS_PASSWORD ping | grep PONG"]
       interval: 5s
       timeout: 3s
       retries: 30
 
   mailhog:
-  # im not sure this is even how we do it
+    container_name: mailhog
     image: mailhog/mailhog:latest
     ports:
       - "1025:1025"   # SMTP
