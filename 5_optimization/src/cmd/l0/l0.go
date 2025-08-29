@@ -5,12 +5,14 @@ import (
 	"errors"
 	"l0/internal/config"
 	"l0/internal/handlers"
+	"l0/internal/metrics"
 	"l0/internal/storage/cache"
 	"l0/internal/storage/postgres"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	initCfg "github.com/kxddry/go-utils/pkg/config"
@@ -18,6 +20,7 @@ import (
 	"github.com/kxddry/go-utils/pkg/logger/handlers/sl"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -51,6 +54,19 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
 	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{Timeout: cfg.Server.Timeout}))
+
+	// metrics
+	metrics.Register()
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			start := time.Now()
+			err := next(c)
+			metrics.IncRequestsPerSecond()
+			metrics.ObserveRequestDuration(c.Path(), time.Since(start))
+			return err
+		}
+	})
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	srv := &http.Server{
 		Addr:         cfg.Server.Address,

@@ -49,19 +49,20 @@ services:
       retries: 10
 
   migrator:
-    build:
-      context: .
-      dockerfile: cmd/migrator/Dockerfile
-    environment:
-      - CONFIG_PATH=/app/migrations.yaml
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - OPERATION=${OPERATION}
-    volumes:
-      - ./config/migrations.yaml:/app/migrations.yaml
-      - ./migrations/:/migrations/
+    image: migrate/migrate:v4.17.1
+    container_name: migrator
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - ./docker/postgres:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database
+      - postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB?sslmode=disable
+      - up
+
+
 
   sender:
     build:

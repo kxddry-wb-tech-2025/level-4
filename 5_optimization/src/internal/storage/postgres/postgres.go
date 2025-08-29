@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"l0/internal/config"
+	"l0/internal/metrics"
 	"l0/internal/models"
 	"l0/internal/storage"
+	"time"
 
 	"golang.org/x/net/context"
 )
@@ -28,6 +30,8 @@ func (s *Storage) begin(ctx c.Context) (*sql.Tx, error) {
 // SaveOrder saves an order.
 func (s *Storage) SaveOrder(ctx c.Context, order *models.Order) error {
 	const op = "storage.postgres.SaveOrder"
+	start := time.Now()
+	defer func() { metrics.ObserveRepositoryDuration("SaveOrder", time.Since(start)) }()
 	tx, err := s.begin(ctx)
 	if err != nil {
 		return fmterr(op, err)
@@ -110,6 +114,8 @@ func (s *Storage) SaveOrder(ctx c.Context, order *models.Order) error {
 // GetOrder gets an order.
 func (s *Storage) GetOrder(ctx c.Context, orderUID string) (_ *models.Order, err error) {
 	const op = "storage.postgres.GetOrder"
+	start := time.Now()
+	defer func() { metrics.ObserveRepositoryDuration("GetOrder", time.Since(start)) }()
 	order := models.Order{}
 	tx, err := s.begin(ctx)
 	if err != nil {
@@ -145,7 +151,7 @@ func (s *Storage) GetOrder(ctx c.Context, orderUID string) (_ *models.Order, err
 	var d models.Delivery
 	err = tx.QueryRow(`SELECT u.name, u.phone, a.zip, a.city, a.address, a.region, u.email
 				FROM addresses a
-						 JOIN users u ON u.customer_id = a.customer_id
+					 JOIN users u ON u.customer_id = a.customer_id
 				WHERE a.id = $1;
 `, deliveryID).Scan(&d.Name, &d.Phone, &d.Zip, &d.City, &d.Address, &d.Region, &d.Email)
 	if err != nil {
@@ -197,6 +203,8 @@ func NewStorage(s config.Storage) (*Storage, error) {
 // AllOrders fetches all orders from the database and returns them
 func (s *Storage) AllOrders(ctx context.Context) ([]*models.Order, error) {
 	const op = "storage.postgres.AllOrders"
+	start := time.Now()
+	defer func() { metrics.ObserveRepositoryDuration("AllOrders", time.Since(start)) }()
 	uids, err := s.db.QueryContext(ctx, `SELECT order_uid FROM orders ORDER BY order_uid`)
 	if err != nil {
 		return nil, fmterr(op, err)
