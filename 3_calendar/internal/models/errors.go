@@ -2,7 +2,8 @@ package models
 
 import "errors"
 
-// ErrNotFound is the error for not found
+// Errors
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound     = errors.New("not found")
+	ErrInvalidEvent = errors.New("invalid event")
 )

@@ -155,11 +155,19 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 // UpdateEvent updates an event
 func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateEventRequest) error {
 	var old models.Event
+
+	if !new.End.After(new.Start) {
+		return fmt.Errorf("%w: %s", models.ErrInvalidEvent, "end time must be after start time")
+	}
+
 	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
 		var err error
 		var deleted bool
 		old, err = tx.GetEvent(ctx, id)
 		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				return fmt.Errorf("%w: event %s not found", models.ErrNotFound, id)
+			}
 			return err
 		}
 
@@ -179,14 +187,7 @@ func (s *Service) UpdateEvent(ctx context.Context, id string, new models.UpdateE
 		}
 
 		if deleted {
-			err = tx.CreateEventWithID(ctx, id, models.CreateEventRequest{
-				Title:       new.Title,
-				Start:       new.Start,
-				End:         new.End,
-				Notify:      new.Notify,
-				Email:       new.Email,
-				Description: new.Description,
-			})
+			err = tx.CreateEventWithID(ctx, id, models.CreateEventRequest(new))
 		} else {
 			err = tx.UpdateEvent(ctx, id, new)
 		}

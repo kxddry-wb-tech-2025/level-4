@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -40,6 +41,10 @@ func (s *Server) createEvent(c echo.Context) error {
 
 	id, err := s.svc.CreateEvent(c.Request().Context(), req)
 	if err != nil {
+		if errors.Is(err, models.ErrInvalidEvent) {
+			return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": err.Error()})
+		}
+
 		s.sendLog(log.Error(err, "failed to create event", echo.Map{
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "createEvent",
@@ -53,6 +58,10 @@ func (s *Server) createEvent(c echo.Context) error {
 func (s *Server) getEvents(c echo.Context) error {
 	events, err := s.svc.GetEvents(c.Request().Context())
 	if err != nil {
+		if errors.Is(err, models.ErrInvalidEvent) {
+			return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": err.Error()})
+		}
+
 		s.sendLog(log.Error(err, "failed to get events", echo.Map{
 			"request_id": c.Response().Header().Get(echo.HeaderXRequestID),
 			"op":         "getEvents",
@@ -97,6 +106,9 @@ func (s *Server) updateEvent(c echo.Context) error {
 		if errors.Is(err, models.ErrNotFound) {
 			return c.JSON(http.StatusNotFound, echo.Map{"error": err.Error()})
 		}
+		if errors.Is(err, models.ErrInvalidEvent) {
+			return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": err.Error()})
+		}
 
 		s.sendLog(log.Error(err, "failed to update event", echo.Map{
 			"id":         id,
@@ -111,6 +123,9 @@ func (s *Server) updateEvent(c echo.Context) error {
 
 func (s *Server) deleteEvent(c echo.Context) error {
 	id := c.Param("id")
+	if uuid.Validate(id) != nil {
+		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": "invalid event id"})
+	}
 	err := s.svc.DeleteEvent(c.Request().Context(), id)
 	if err != nil {
 		if errors.Is(err, models.ErrNotFound) {
