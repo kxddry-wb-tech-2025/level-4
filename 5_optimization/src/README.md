@@ -1,4 +1,4 @@
-# Level-0 - Go Microservice with Kafka, Cache, and PostgreSQL
+ d# Level-0 - Go Microservice with Kafka, Cache, and PostgreSQL
 
 ![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
@@ -57,9 +57,18 @@ level-0/
 
 2. **Запуск инфраструктуры через Docker Compose:**
    ```bash
-   # Запуск всех сервисов (PostgreSQL, Kafka, Nginx, Go, Sender, ...)
-   docker-compose up -d
+   # Запуск бэкенда, PostgreSQL, миграций, Prometheus и Grafana
+   docker compose up -d
    ```
+
+3. **Метрики и мониторинг**
+   - Приложение экспортирует метрики на `GET /metrics` (порт `8080`).
+   - Prometheus доступен на `http://localhost:9090`.
+   - Grafana доступна на `http://localhost:3000` (логин/пароль: `admin`/`admin`).
+   - Дашборд "Backend Overview" будет автоматически загружен в Grafana.
+
+   Если дашборд не появился автоматически, импортируйте файл:
+   `monitoring/grafana/dashboards/backend-overview.json` через интерфейс Grafana.
 
 ### Конфигурация
 
