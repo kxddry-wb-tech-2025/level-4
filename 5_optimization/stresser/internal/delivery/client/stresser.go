@@ -62,7 +62,7 @@ func NewStresser(victim string, ctx context.Context) *Stresser {
 }
 
 // Stress sends orders to the victim server.
-func (s *Stresser) Stress(orders []models.Order, reuse bool, concurrency int) {
+func (s *Stresser) Stress(orders []models.Order, reuse bool, concurrency int, operation string) {
 	process := func() {
 		for _, order := range orders {
 			time.Sleep(time.Duration(rand.Intn(1000)) * time.Microsecond)
@@ -71,8 +71,15 @@ func (s *Stresser) Stress(orders []models.Order, reuse bool, concurrency int) {
 			case <-s.ctx.Done():
 				return
 			default:
-				if err := s.sendOrder(order); err != nil {
-					s.sendLog(log.Error(err, "failed to send order", map[string]any{"order": order}))
+				switch operation {
+				case "create":
+					if err := s.sendOrder(order); err != nil {
+						s.sendLog(log.Error(err, "failed to send order", map[string]any{"order": order}))
+					}
+				case "get":
+					if err := s.getOrder(order.OrderUID); err != nil {
+						s.sendLog(log.Error(err, "failed to get order", map[string]any{"order": order}))
+					}
 				}
 			}
 		}
@@ -98,6 +105,19 @@ func (s *Stresser) Stress(orders []models.Order, reuse bool, concurrency int) {
 	}
 
 	wg.Wait()
+}
+
+func (s *Stresser) getOrder(orderUID string) error {
+	resp, err := s.client.R().Get(s.host + "/order/" + orderUID)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode() != 200 {
+		return errors.New(resp.String())
+	}
+
+	return nil
 }
 
 // sendOrder sends an order to the victim server.

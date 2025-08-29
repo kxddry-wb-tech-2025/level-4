@@ -17,6 +17,13 @@ import (
 
 func main() {
 	godotenv.Load()
+	operation := os.Getenv("OPERATION")
+	if operation == "" {
+		operation = "create"
+	} else if operation != "get" && operation != "create" {
+		panic("OPERATION must be either 'create' or 'get'")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logger := logging.New("dev")
@@ -30,7 +37,7 @@ func main() {
 	stresser := client.NewStresser(victim, ctx)
 	fmt.Println("Stresser started")
 
-	stresser.Stress(examples.Orders, true, runtime.GOMAXPROCS(0))
+	stresser.Stress(examples.Orders, true, runtime.GOMAXPROCS(0), operation)
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
