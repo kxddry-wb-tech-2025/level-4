@@ -8,8 +8,6 @@ services:
       - 2112:2112
     environment:
       - PORT=2112
-    volumes:
-      - .env:/app/.env
     restart: unless-stopped
 
   prometheus:
@@ -18,7 +16,7 @@ services:
     ports:
       - 9090:9090
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     restart: unless-stopped
 
   grafana:
@@ -30,7 +28,10 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana-data:/var/lib/grafana
-  
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/provisioning/dashboards/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./grafana/dashboards:/etc/grafana/dashboards
+    restart: unless-stopped
 
 volumes:
   grafana-data:
