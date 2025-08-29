@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	godotenv.Load(".env.example")
 	operation := os.Getenv("OPERATION")
 	if operation == "" {
 		operation = "create"
