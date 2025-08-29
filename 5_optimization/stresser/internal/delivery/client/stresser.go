@@ -11,7 +11,7 @@ import (
 
 // Stresser is a client that can stress a victim server.
 type Stresser struct {
-	logs   chan<- log.Entry
+	logs   chan log.Entry
 	ctx    context.Context
 	client *resty.Client
 	host   string
@@ -33,6 +33,7 @@ func (s *Stresser) sendLog(entry log.Entry) {
 	} else {
 		select {
 		case s.logs <- entry:
+		case <-s.ctx.Done():
 		default:
 		}
 	}
@@ -42,20 +43,32 @@ func (s *Stresser) sendLog(entry log.Entry) {
 func (s *Stresser) Logs() <-chan log.Entry {
 	logs := make(chan log.Entry, log.ChannelCapacity)
 	s.logs = logs
+
+	// Start a goroutine to close the channel when context is canceled
+	go func() {
+		<-s.ctx.Done()
+		close(s.logs)
+	}()
+
 	return logs
 }
 
 // NewStresser creates a new Stresser.
-func NewStresser(victim string) *Stresser {
-	return &Stresser{client: resty.New(), host: victim}
+func NewStresser(victim string, ctx context.Context) *Stresser {
+	return &Stresser{client: resty.New(), host: victim, ctx: ctx}
 }
 
 // Stress sends orders to the victim server.
 func (s *Stresser) Stress(orders []models.Order, reuse bool) {
 	process := func() {
 		for _, order := range orders {
-			if err := s.sendOrder(order); err != nil {
-				s.sendLog(log.Error(err, "failed to send order", map[string]any{"order": order}))
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				if err := s.sendOrder(order); err != nil {
+					s.sendLog(log.Error(err, "failed to send order", map[string]any{"order": order}))
+				}
 			}
 		}
 	}
