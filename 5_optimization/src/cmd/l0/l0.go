@@ -32,7 +32,7 @@ func main() {
 	initCfg.MustParseConfig(&cfg)
 	log := initLog.SetupLogger(cfg.Env)
 	log.Debug("debug enabled")
-	st, err := postgres.NewStorage(cfg.Storage)
+	st, err := postgres.NewStorage(ctx, cfg.Storage)
 	if err != nil {
 		panic(err)
 	}
