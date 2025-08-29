@@ -28,6 +28,6 @@ func (s *Server) routes() {
 	s.e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 }
 
-func (s *Server) Start(addr string) error {
-	return s.e.Start(addr)
+func (s *Server) Start(port string) error {
+	return s.e.Start(":" + port)
 }
