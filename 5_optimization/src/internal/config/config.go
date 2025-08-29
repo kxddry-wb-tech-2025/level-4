@@ -22,9 +22,11 @@ type Storage struct {
 
 // Server is a structure with configs for an HTTP server
 type Server struct {
-	Address     string        `yaml:"address" env-required:"true"`
-	Timeout     time.Duration `yaml:"timeout" env-default:"3s"`
-	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
+	Address      string        `yaml:"address" env-required:"true"`
+	Timeout      time.Duration `yaml:"timeout" env-default:"3s"`
+	IdleTimeout  time.Duration `yaml:"idle_timeout" env-default:"60s"`
+	PprofEnabled bool          `yaml:"pprof_enabled" env-default:"false"`
+	PprofAddress string        `yaml:"pprof_address" env-default:":6060"`
 }
 
 // Cache is a structure with configs for creating cache

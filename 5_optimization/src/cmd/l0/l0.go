@@ -21,6 +21,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"net/http/pprof"
 )
 
 func main() {
@@ -39,6 +41,29 @@ func main() {
 	err = handlers.LoadCache(ctx, cacher, st)
 	if err != nil {
 		panic(err)
+	}
+
+	// optional pprof server
+	var pprofSrv *http.Server
+	if cfg.Server.PprofEnabled {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+
+		pprofSrv = &http.Server{Addr: cfg.Server.PprofAddress, Handler: mux}
+		go func() {
+			if err := pprofSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Error("pprof server failed", sl.Err(err))
+			}
+		}()
+		log.Info("pprof enabled at " + cfg.Server.PprofAddress)
 	}
 
 	// I'm too lazy to refactor this whole thing. Hence I'm not creating a Server layer.
@@ -90,6 +115,9 @@ func main() {
 	log.Info("shutting down")
 
 	_ = srv.Shutdown(ctx)
+	if pprofSrv != nil {
+		_ = pprofSrv.Shutdown(ctx)
+	}
 
 }
 

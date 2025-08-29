@@ -4,6 +4,8 @@ server:
   timeout: 4s
   idle_timeout: 60s
   address: "0.0.0.0:8080"
+  pprof_enabled: true
+  pprof_address: ":6060"
 
 cache:
   ttl: 15m
