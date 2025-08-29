@@ -21,11 +21,19 @@ func NewEmailClient(cfg *config.EmailConfig) *EmailClient {
 	if !cfg.TLSEnabled {
 		dialer.SSL = false
 		dialer.TLSConfig = nil
+		dialer.Username = ""
+		dialer.Password = ""
 	}
 
 	return &EmailClient{
 		dialer: dialer,
 	}
+}
+
+// Ping checks if the SMTP connection is working
+func (c *EmailClient) Ping() error {
+	_, err := c.dialer.Dial()
+	return err
 }
 
 // SendEmails sends multiple emails reusing the same connection for performance

@@ -23,7 +23,7 @@ type Notification struct {
 
 // MessageTemplate is the template for the notification message
 const (
-	MessageTemplate = "You have an event %s at %s"
+	MessageTemplate = "You have an event <b>%s</b> at <b>%s</b>"
 	NotifyBefore    = 15 * time.Minute
 )
 

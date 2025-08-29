@@ -17,7 +17,7 @@ services:
       - redis
       - mailhog
     volumes:
-      - ./configs/config.docker.yaml:/app/configs/config.docker.yaml
+      - $CONFIG_PATH_DOCKER:/app/configs/config.docker.yaml
 
   postgres:
     image: postgres:17-alpine

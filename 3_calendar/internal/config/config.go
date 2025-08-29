@@ -32,7 +32,7 @@ type EmailConfig struct {
 	Port       int    `yaml:"port" env-required:"true"`
 	Username   string `yaml:"username" env-required:"true"`
 	Password   string `env:"SMTP_PASSWORD" env-required:"true"`
-	TLSEnabled bool   `yaml:"tls_enabled" env-default:"true"`
+	TLSEnabled bool   `yaml:"tls_enabled" env-default:"false"`
 }
 
 // ServerConfig is the configuration for the HTTP server

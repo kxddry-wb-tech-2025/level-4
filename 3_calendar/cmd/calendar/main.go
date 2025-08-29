@@ -13,6 +13,7 @@ import (
 	redisStore "calendar/internal/storage/redis"
 	"calendar/internal/storage/txmanager"
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -38,6 +39,10 @@ func main() {
 	redis := redisStore.NewStorage(&cfg.Redis)
 
 	emailClient := smtp.NewEmailClient(&cfg.SMTP)
+	if err := emailClient.Ping(); err != nil {
+		fmt.Println(cfg.SMTP)
+		panic(fmt.Sprintf("smtp connection failed: %v", err))
+	}
 	sender := notifyDelivery.NewSender(emailClient, &cfg.SMTP)
 
 	txmgr, err := txmanager.New(mainCtx, cfg.Storage.DSN())
