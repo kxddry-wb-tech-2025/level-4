@@ -6,6 +6,7 @@ import (
 	"calendar/internal/storage"
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -150,6 +151,9 @@ func (r *Repository) Get(ctx context.Context, id string) (models.Event, error) {
 	var event models.Event
 	err := row.Scan(&event.ID, &event.Title, &event.Description, &event.Start, &event.End, &event.Notify, &event.Email)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.Event{}, fmt.Errorf("%w: event %s not found", models.ErrNotFound, id)
+		}
 		return models.Event{}, err
 	}
 	return event, nil
@@ -174,7 +178,7 @@ func (r *Repository) Update(ctx context.Context, id string, event models.UpdateE
 	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return storage.ErrNotFound
+			return fmt.Errorf("%w: event %s not found", storage.ErrNotFound, id)
 		}
 		return err
 	}

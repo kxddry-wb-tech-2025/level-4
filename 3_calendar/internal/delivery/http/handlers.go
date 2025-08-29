@@ -74,6 +74,10 @@ func (s *Server) getEvents(c echo.Context) error {
 
 func (s *Server) getEvent(c echo.Context) error {
 	id := c.Param("id")
+	if uuid.Validate(id) != nil {
+		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": "invalid event id"})
+	}
+
 	event, err := s.svc.GetEvent(c.Request().Context(), id)
 	if err != nil {
 		if errors.Is(err, models.ErrNotFound) {
@@ -93,6 +97,10 @@ func (s *Server) getEvent(c echo.Context) error {
 
 func (s *Server) updateEvent(c echo.Context) error {
 	id := c.Param("id")
+	if uuid.Validate(id) != nil {
+		return c.JSON(http.StatusUnprocessableEntity, echo.Map{"error": "invalid event id"})
+	}
+
 	var req models.UpdateEventRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})

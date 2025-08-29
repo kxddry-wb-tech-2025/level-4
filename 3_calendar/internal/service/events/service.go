@@ -85,6 +85,10 @@ func (s *Service) sendJob(ctx context.Context, job any) {
 
 // CreateEvent creates a new event
 func (s *Service) CreateEvent(ctx context.Context, event models.CreateEventRequest) (string, error) {
+	if !event.End.After(event.Start) {
+		return "", fmt.Errorf("%w: %s", models.ErrInvalidEvent, "end time must be after start time")
+	}
+
 	var id string
 	if err := s.txmgr.Do(ctx, func(ctx context.Context, tx Tx) error {
 		var err error
@@ -143,7 +147,7 @@ func (s *Service) GetEvent(ctx context.Context, id string) (models.Event, error)
 		}))
 
 		if errors.Is(err, storage.ErrNotFound) {
-			return models.Event{}, nil
+			return models.Event{}, fmt.Errorf("%w: %s", models.ErrNotFound, id)
 		}
 
 		return models.Event{}, err
