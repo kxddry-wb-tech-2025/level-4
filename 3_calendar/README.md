@@ -1,128 +1,382 @@
-## Календарь — запуск и тестирование через Docker Compose
+# Календарное приложение (Calendar App)
 
-Ниже — инструкции, как поднять сервис вместе с зависимостями (PostgreSQL, Redis, Mailhog), как выполнить запросы и прогнать тесты.
+Веб-приложение для управления календарными событиями с возможностью настройки уведомлений по email.
 
-### Что поднимается
-- **app**: Go-приложение (`cmd/calendar/main.go`), порт `8080`
-- **postgres**: PostgreSQL 16, порт `5432`, БД/пользователь `calendar`, пароль `calendarpass`
-- **redis**: Redis 7, порт `6379`, пароль `calendarpass`
-- **mailhog**: локальный SMTP-сервер (порт `1025`) и веб-интерфейс по адресу `http://localhost:8025`
+## Описание
 
-Инициализация схемы БД выполняется автоматически скриптом `docker/postgres/init.sql`.
+Приложение представляет собой REST API сервис, построенный на Go, который позволяет:
+- Создавать, читать, обновлять и удалять календарные события
+- Настраивать уведомления по email для событий
+- Автоматически архивировать старые события
+- Отправлять уведомления через SMTP
 
-### Быстрый старт
-```bash
-docker compose up --build
-# Подождите, пока все сервисы станут healthy, затем приложение будет доступно на http://localhost:8080
+## Технологии
+
+- **Backend**: Go 1.25.0
+- **Web Framework**: Echo v4
+- **База данных**: PostgreSQL 17
+- **Кэш**: Redis 7
+- **SMTP**: Поддержка SMTP серверов
+- **Контейнеризация**: Docker & Docker Compose
+- **Миграции**: Migrate v4
+- **Логирование**: Zap
+- **Валидация**: Validator v10
+- **Мониторинг**: Prometheus метрики
+
+## Архитектура
+
+```
+cmd/calendar/          # Точка входа приложения
+internal/
+├── config/           # Конфигурация
+├── delivery/         # HTTP handlers и SMTP клиент
+├── lib/             # Вспомогательные библиотеки
+├── logging/         # Система логирования
+├── models/          # Модели данных
+├── service/         # Бизнес-логика
+└── storage/         # Работа с БД и Redis
 ```
 
-Приложение читает конфиг из `configs/config.docker.yaml` и переменные окружения:
-- `STORAGE_PASSWORD=calendarpass`
-- `REDIS_PASSWORD=calendarpass`
-- `SMTP_PASSWORD` — можно оставить пустым для Mailhog
+## Требования
 
-### Полезные ссылки
-- API: `http://localhost:8080`
-- Здоровье: `GET http://localhost:8080/health` (ожидается 200)
-- Метрики: `GET http://localhost:8080/metrics`
-- Mailhog Web UI: `http://localhost:8025`
+- Go 1.25.0 или выше
+- Docker и Docker Compose
+- PostgreSQL 17
+- Redis 7
 
-### Примеры запросов
+## Быстрый старт
 
-Создать событие:
+### 1. Клонирование репозитория
+
 ```bash
-curl -sS -X POST http://localhost:8080/events \
-  -H 'Content-Type: application/json' \
+git clone <repository-url>
+cd calendar
+```
+
+### 2. Настройка переменных окружения
+
+Скопируйте файл с примерами переменных окружения:
+
+```bash
+cp env.example .env
+```
+
+Отредактируйте `.env` файл, указав необходимые значения:
+
+```bash
+# SMTP настройки
+SMTP_PASSWORD=your_smtp_password
+
+# PostgreSQL настройки
+POSTGRES_PASSWORD=your_postgres_password
+POSTGRES_USER=user
+POSTGRES_DB=calendar
+
+# Redis настройки
+REDIS_PASSWORD=your_redis_password
+
+# Временная зона
+TZ=UTC
+
+# Пути к конфигурации
+CONFIG_PATH_DOCKER=./configs/config.docker.yaml
+CONFIG_PATH=configs/config.yaml
+STORAGE_PASSWORD=$POSTGRES_PASSWORD
+```
+
+### 3. Запуск с Docker Compose
+
+Самый простой способ запуска - использование Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+Это запустит:
+- Приложение на порту 8080
+- PostgreSQL на порту 5432
+- Redis на порту 6379
+- MailHog (SMTP тестирование) на портах 1025 (SMTP) и 8025 (Web UI)
+- Автоматические миграции БД
+
+### 4. Проверка работоспособности
+
+```bash
+# Проверка здоровья сервиса
+curl http://localhost:8080/health
+
+# Получение метрик
+curl http://localhost:8080/metrics
+
+# Создание события
+curl -X POST http://localhost:8080/events \
+  -H "Content-Type: application/json" \
   -d '{
-    "title": "Встреча",
-    "description": "Обсуждение плана",
-    "start": "2025-01-01T10:00:00Z",
-    "end": "2025-01-01T11:00:00Z",
+    "title": "Тестовое событие",
+    "description": "Описание события",
+    "start": "2024-12-25T10:00:00Z",
+    "end": "2024-12-25T11:00:00Z",
     "notify": true,
-    "email": "user@example.com"
+    "email": "test@example.com"
   }'
 ```
 
-Список событий:
+## Локальная разработка
+
+### 1. Установка зависимостей
+
 ```bash
-curl -sS http://localhost:8080/events | jq
+go mod download
 ```
 
-Получить событие по ID:
+### 2. Запуск зависимостей
+
 ```bash
-curl -sS http://localhost:8080/events/<id>
+# Запуск только БД и Redis
+docker-compose up -d postgres redis mailhog
+
+# Ожидание готовности PostgreSQL
+docker-compose exec postgres pg_isready -U user -d calendar
 ```
 
-Обновить событие:
+### 3. Применение миграций
+
 ```bash
-curl -sS -X PUT http://localhost:8080/events/<id> \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "title": "Встреча (обновл.)",
-    "description": "Правки",
-    "start": "2025-01-01T10:30:00Z",
-    "end": "2025-01-01T11:30:00Z",
-    "notify": false,
-    "email": "user@example.com"
-  }'
+# Автоматически через Docker Compose
+docker-compose up migrator
+
+# Или вручную
+docker run --rm -v $(pwd)/docker/postgres:/migrations \
+  --network calendar_default \
+  migrate/migrate:v4.17.1 \
+  -path=/migrations \
+  -database "postgres://user:password@localhost:5432/calendar?sslmode=disable" \
+  up
 ```
 
-Удалить событие:
+### 4. Запуск приложения
+
 ```bash
-curl -sS -X DELETE http://localhost:8080/events/<id> -i
+# Установка переменных окружения
+export CONFIG_PATH=configs/config.yaml
+export STORAGE_PASSWORD=password
+export REDIS_PASSWORD=password
+export SMTP_PASSWORD=password
+
+# Запуск
+go run cmd/calendar/main.go
 ```
 
-Проверка здоровья:
-```bash
-curl -i http://localhost:8080/health
-```
-
-Метрики:
-```bash
-curl -sS http://localhost:8080/metrics | head -n 30
-```
-
-### Тестирование
-
-Тесты зависят от Testcontainers для PostgreSQL. Запускайте их локально (в контейнере сервис уже работает). Нужен установленный Docker.
+### 5. Запуск тестов
 
 ```bash
-# Из корня проекта
+# Все тесты
 go test ./...
+
+# Тесты с покрытием
+go test -cover ./...
+
+# Тесты конкретного пакета
+go test ./internal/service/events/...
 ```
 
-При первом запуске тесты сами поднимут контейнер Postgres и применят минимальную схему.
+## Конфигурация
 
-### Конфигурация
+### Основные настройки
 
-Основной конфиг: `configs/config.yaml` (локальная разработка, хосты `localhost`).
+Файл `configs/config.yaml` содержит основные настройки:
 
-Docker-конфиг: `configs/config.docker.yaml` (хосты: `postgres`, `redis`, `mailhog`). Переменные окружения:
-- `CONFIG_PATH=/app/configs/config.docker.yaml`
-- `STORAGE_PASSWORD` — пароль пользователя Postgres `calendar`
-- `REDIS_PASSWORD` — пароль Redis
-- `SMTP_PASSWORD` — пароль SMTP (для Mailhog можно пустым)
+```yaml
+env: dev
 
-Файлы окружения: пример в `env.example`.
+server:
+  port: 8080
+  timeout: 30s
+  idle_timeout: 60s
 
-### OpenAPI
+smtp:
+  host: localhost
+  port: 1025
+  username: "email@example.com"
 
-Спецификация `openapi.yaml` уже указывает сервер `http://localhost:8080`. Эндпоинты:
-- `GET /health`
-- `GET /metrics`
-- `POST /events`
-- `GET /events`
-- `GET /events/{id}`
-- `PUT /events/{id}`
-- `DELETE /events/{id}`
+redis:
+  host: localhost
+  port: 6379
+  username: default
+  database: 0
 
-Можно импортировать `openapi.yaml` в Postman/Insomnia/Swagger UI.
+storage:
+  host: localhost
+  port: 5432
+  username: user
+  database: calendar
+  sslmode: disable
 
-### Остановка и очистка
+worker:
+  interval: 1s
+  limit: 100
+
+archiver:
+  interval: 30s
+  older_than: 30d
+  batch_size: 100
+```
+
+### Docker конфигурация
+
+Для Docker используется `configs/config.docker.yaml` с настройками для контейнеров.
+
+## API Endpoints
+
+### Основные эндпоинты
+
+- `GET /health` - Проверка здоровья сервиса
+- `GET /metrics` - Prometheus метрики
+- `POST /events` - Создание события
+- `GET /events` - Получение списка событий
+- `GET /events/{id}` - Получение события по ID
+- `PUT /events/{id}` - Обновление события
+- `DELETE /events/{id}` - Удаление события
+
+### Модель события
+
+```json
+{
+  "id": "uuid",
+  "title": "Название события",
+  "description": "Описание события",
+  "start": "2024-12-25T10:00:00Z",
+  "end": "2024-12-25T11:00:00Z",
+  "notify": true,
+  "email": "user@example.com"
+}
+```
+
+## Развертывание
+
+### Development окружение
+
 ```bash
-docker compose down
-# Для полного удаления данных Postgres/Redis:
-docker compose down -v
+# Запуск всех сервисов
+docker-compose up -d
+
+# Просмотр логов
+docker-compose logs -f app
+
+# Остановка
+docker-compose down
 ```
+
+### Production окружение
+
+1. **Подготовка переменных окружения**
+   ```bash
+   # Создайте .env.prod с production значениями
+   cp env.example .env.prod
+   # Отредактируйте .env.prod
+   ```
+
+2. **Сборка и запуск**
+   ```bash
+   # Сборка production образа
+   docker build -t calendar:prod .
+
+   # Запуск с production конфигурацией
+   docker run -d \
+     --name calendar-prod \
+     --env-file .env.prod \
+     -p 8080:8080 \
+     calendar:prod
+   ```
+
+3. **Использование внешних сервисов**
+   - Замените MailHog на реальный SMTP сервер
+   - Настройте внешний PostgreSQL и Redis
+   - Настройте reverse proxy (nginx)
+   - Настройте SSL/TLS
+
+## Мониторинг и логирование
+
+### Метрики
+
+Приложение предоставляет Prometheus метрики по адресу `/metrics`.
+
+### Логирование
+
+Логи собираются через Zap logger и выводятся в stdout/stderr.
+
+### Health Check
+
+Эндпоинт `/health` для проверки состояния сервиса.
+
+## Устранение неполадок
+
+### Частые проблемы
+
+1. **PostgreSQL не доступен**
+   ```bash
+   docker-compose logs postgres
+   docker-compose exec postgres pg_isready -U user -d calendar
+   ```
+
+2. **Redis не доступен**
+   ```bash
+   docker-compose logs redis
+   docker-compose exec redis redis-cli -a password ping
+   ```
+
+3. **SMTP ошибки**
+   - Проверьте настройки SMTP в конфигурации
+   - Для тестирования используйте MailHog (http://localhost:8025)
+
+4. **Миграции не применяются**
+   ```bash
+   docker-compose logs migrator
+   docker-compose up migrator
+   ```
+
+### Просмотр логов
+
+```bash
+# Все сервисы
+docker-compose logs -f
+
+# Конкретный сервис
+docker-compose logs -f app
+docker-compose logs -f postgres
+docker-compose logs -f redis
+```
+
+## Разработка
+
+### Структура проекта
+
+- `cmd/` - Точки входа приложений
+- `internal/` - Внутренний код приложения
+- `configs/` - Конфигурационные файлы
+- `docker/` - Docker файлы и миграции
+- `testutil/` - Утилиты для тестирования
+
+### Добавление новых функций
+
+1. Создайте модель в `internal/models/`
+2. Добавьте репозиторий в `internal/storage/repos/`
+3. Реализуйте сервис в `internal/service/`
+4. Создайте HTTP handler в `internal/delivery/http/`
+5. Добавьте тесты
+
+### Code Style
+
+- Используйте `go fmt` для форматирования
+- Запускайте `go vet` для проверки кода
+- Следуйте стандартным Go conventions
+
+## Лицензия
+
+[Укажите лицензию проекта]
+
+## Поддержка
+
+[Укажите контактную информацию для поддержки]
 
 
