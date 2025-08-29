@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"stresser/internal/delivery/client"
 	"stresser/internal/examples"
 	"stresser/internal/logging"
@@ -26,7 +28,9 @@ func main() {
 	}
 
 	stresser := client.NewStresser(victim, ctx)
-	stresser.Stress(examples.Orders, true)
+	fmt.Println("Stresser started")
+
+	stresser.Stress(examples.Orders, true, runtime.GOMAXPROCS(0))
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)

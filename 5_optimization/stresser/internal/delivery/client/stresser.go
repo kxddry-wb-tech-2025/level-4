@@ -3,8 +3,11 @@ package client
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"stresser/internal/models"
 	"stresser/internal/models/log"
+	"sync"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -59,9 +62,11 @@ func NewStresser(victim string, ctx context.Context) *Stresser {
 }
 
 // Stress sends orders to the victim server.
-func (s *Stresser) Stress(orders []models.Order, reuse bool) {
+func (s *Stresser) Stress(orders []models.Order, reuse bool, concurrency int) {
 	process := func() {
 		for _, order := range orders {
+			time.Sleep(time.Duration(rand.Intn(1000)) * time.Microsecond)
+
 			select {
 			case <-s.ctx.Done():
 				return
@@ -73,20 +78,26 @@ func (s *Stresser) Stress(orders []models.Order, reuse bool) {
 		}
 	}
 
-	if !reuse {
-		go process()
-	} else {
-		go func() {
-			for {
-				select {
-				case <-s.ctx.Done():
-					return
-				default:
-					process()
+	wg := new(sync.WaitGroup)
+
+	for range concurrency {
+		wg.Go(func() {
+			if !reuse {
+				process()
+			} else {
+				for {
+					select {
+					case <-s.ctx.Done():
+						return
+					default:
+						process()
+					}
 				}
 			}
-		}()
+		})
 	}
+
+	wg.Wait()
 }
 
 // sendOrder sends an order to the victim server.
@@ -96,8 +107,8 @@ func (s *Stresser) sendOrder(order models.Order) error {
 		return err
 	}
 
-	if resp.IsError() {
-		return errors.New(resp.Status())
+	if resp.StatusCode() != 200 {
+		return errors.New(resp.String())
 	}
 
 	return nil
