@@ -34,10 +34,11 @@ func getOrderWithTx(ctx context.Context, tx pgx.Tx, orderUID string) (_ *models.
 	var (
 		deliveryID  uint
 		transaction string
+		dateCreated time.Time
 	)
 	err = tx.QueryRow(ctx, `SELECT order_uid, track_number, entry, delivery, payment, locale, internal_signature,
        customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard FROM orders WHERE order_uid = $1`, orderUID).Scan(
-		&order.OrderUID, &order.TrackNumber, &order.Entry, &deliveryID, &transaction, &order.Locale, &order.InternalSignature, &order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID, &order.DateCreated, &order.OofShard,
+		&order.OrderUID, &order.TrackNumber, &order.Entry, &deliveryID, &transaction, &order.Locale, &order.InternalSignature, &order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID, &dateCreated, &order.OofShard,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -45,6 +46,7 @@ func getOrderWithTx(ctx context.Context, tx pgx.Tx, orderUID string) (_ *models.
 		}
 		return nil, fmterr(op, err)
 	}
+	order.DateCreated = dateCreated.Format(time.RFC3339)
 
 	// payment
 	err = tx.QueryRow(ctx, `SELECT transaction, request_id, currency, provider, amount, payment_dt, bank, delivery_cost, goods_total, custom_fee

@@ -7,7 +7,6 @@ require (
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/kxddry/go-utils v1.0.1
 	github.com/labstack/echo/v4 v4.13.4
-	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.23.0
 	github.com/stretchr/testify v1.10.0
 )
