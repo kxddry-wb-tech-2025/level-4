@@ -75,9 +75,7 @@ func main() {
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 		AllowMethods: []string{http.MethodGet}, // only GET allowed
 	}))
-	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.RequestID())
 	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{Timeout: cfg.Server.Timeout}))
 
 	// metrics
