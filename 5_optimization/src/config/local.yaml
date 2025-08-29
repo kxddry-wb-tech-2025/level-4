@@ -1,0 +1,25 @@
+env: dev
+
+server:
+  timeout: 4s
+  idle_timeout: 60s
+  address: "0.0.0.0:8080"
+
+cache:
+  ttl: 15m
+
+storage:
+  host: db
+  port: 5432
+  user: postgres
+  dbname: l0
+  sslmode: disable
+
+kafka:
+  brokers: [kafka:9092]
+  reader:
+    topic: orders
+    group_id: app
+  writer:
+    topic: dlq
+    client_id: app

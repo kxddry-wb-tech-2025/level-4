@@ -1,0 +1,10 @@
+dbs_migrations:
+  - name: l0
+    path: /migrations
+
+storage:
+  host: db
+  port: 5432
+  user: postgres
+  dbname: postgres
+  sslmode: disable
